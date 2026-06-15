@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TODO</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23191919'/><rect x='6' y='8' width='13' height='2.5' rx='1.2' fill='%23c8ff00'/><rect x='6' y='14' width='9' height='2.5' rx='1.2' fill='%23c8ff00' opacity='.6'/><rect x='6' y='20' width='11' height='2.5' rx='1.2' fill='%23c8ff00' opacity='.4'/><polyline points='22,13 24.5,16 29,10' fill='none' stroke='%23c8ff00' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111111">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TODO">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"/>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+1:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #111;
+  --surface: #191919;
+  --surface2: #1e1e1e;
+  --border: #272727;
+  --border2: #333;
+  --accent: #c8ff00;
+  --accent-dim: rgba(200,255,0,0.07);
+  --text: #dedede;
+  --text-mid: #777;
+  --text-dim: #777;
+  --path-color: #777;
+  --done-fg: #383838;
+  --done-strike: #2c2c2c;
+  --tree-line: #242424;
+  --r: 5px;
+}
+:root.light {
+  --bg: #f4f4f2;
+  --surface: #ffffff;
+  --surface2: #f0f0ee;
+  --border: #ddd;
+  --border2: #ccc;
+  --accent: #2a7a00;
+  --accent-dim: rgba(42,122,0,0.08);
+  --text: #1a1a1a;
+  --text-mid: #666;
+  --text-dim: #888;
+  --path-color: #888;
+  --done-fg: #bbb;
+  --done-strike: #ccc;
+  --tree-line: #e0e0e0;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'M PLUS 1',sans-serif; font-weight:400;
+  min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  padding:36px 14px 80px;
+}
+.app { width:100%; max-width:680px; }
+
+/* stats in toolbar */
+.stats-txt { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); }
+.stats-txt b { color:var(--accent); font-weight:400; }
+
+/* card */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; }
+
+/* toolbar */
+.tb {
+  display:flex; align-items:center; gap:0;
+  padding:7px 11px; border-bottom:1px solid var(--border);
+  background:var(--surface2); min-height:48px;
+}
+.tb-seg { display:flex; flex-shrink:0; }       /* segmented group — always left */
+.tb-actions { display:flex; gap:4px; align-items:center; margin-left:10px; flex:1; } /* actions after gap */
+.tb-right { display:flex; gap:4px; align-items:center; margin-left:auto; }
+
+/* segmented button */
+.seg-btn {
+  width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--border2);
+  background:transparent; color:var(--text-mid); cursor:pointer; transition:all .15s;
+}
+.seg-btn:first-child { border-radius:4px 0 0 4px; }
+.seg-btn:last-child  { border-radius:0 4px 4px 0; }
+.seg-btn:not(:first-child) { margin-left:-1px; }
+.seg-btn:hover { color:var(--text); z-index:1; border-color:var(--text-mid); }
+.seg-btn.active { color:var(--accent); border-color:var(--accent); background:var(--accent-dim); z-index:2; }
+.seg-btn svg { width:12px; height:12px; }
+
+/* icon button */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+  font-size:18px; line-height:1; display:inline-flex; align-items:center;
+  user-select:none;
+}
+.ibtn {
+  width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--border2); border-radius:4px;
+  background:transparent; color:var(--text-mid); cursor:pointer; transition:all .15s;
+  position:relative; flex-shrink:0;
+}
+.ibtn:hover { border-color:var(--text-mid); color:var(--text); }
+.ibtn.active { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+.ibtn .flash {
+  display:none; position:absolute; top:-23px; left:50%; transform:translateX(-50%);
+  background:var(--surface2); border:1px solid var(--border2); border-radius:3px;
+  font-size:9px; font-family:'JetBrains Mono',monospace; color:var(--accent);
+  padding:1px 5px; white-space:nowrap; pointer-events:none;
+}
+.ibtn.flashed .flash { display:block; }
+
+.tbtn {
+  padding:3px 9px; font-size:10px; font-family:'JetBrains Mono',monospace; letter-spacing:.05em;
+  border:1px solid var(--border2); border-radius:4px;
+  background:transparent; color:var(--text-mid); cursor:pointer; transition:all .15s;
+  height:32px; display:flex; align-items:center;
+}
+.tbtn:hover { border-color:var(--text-mid); color:var(--text); }
+.tbtn.ok { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+.tbtn.ok:hover { background:rgba(200,255,0,0.12); }
+.tbtn.danger:hover { border-color:#b33; color:#f55; }
+
+/* editor */
+/* editor wrapper for syntax highlight overlay */
+.editor-wrap {
+  display:none; position:relative;
+}
+.editor-wrap textarea {
+  display:block; width:100%; min-height:700px;
+  background:transparent; color:transparent;
+  border:none; outline:none; padding:14px;
+  font-family:'Source Han Code JP','源ノ角ゴシック Code JP','M PLUS 1',monospace; font-size:13px; line-height:1.85; font-weight:400;
+  resize:vertical; tab-size:2; caret-color:var(--accent);
+  position:relative; z-index:1;
+  white-space:pre-wrap; word-wrap:break-word;
+}
+.editor-hl {
+  position:absolute; top:0; left:0; width:100%; min-height:700px;
+  padding:14px; pointer-events:none;
+  font-family:'Source Han Code JP','源ノ角ゴシック Code JP','M PLUS 1',monospace; font-size:13px; line-height:1.85; font-weight:400;
+  white-space:pre-wrap; word-wrap:break-word;
+  overflow:hidden; tab-size:2;
+  color:var(--text); background:var(--surface);
+  z-index:0;
+}
+/* highlight colors */
+.hl-done    { color:var(--text-dim); }
+.hl-susp    { color:var(--text-dim); opacity:0.5; }
+.hl-imp     { color:#ff6644; }
+.hl-urg     { color:#e6a800; }
+.hl-marker  { color:var(--text-mid); }
+
+/* preview */
+.pv { padding:8px 10px; min-height:320px; }
+
+/* ── FLAT MODE rows ── */
+.flat-row {
+  padding:5px 4px; border-radius:4px; margin:2px 0;
+  user-select:none; cursor:default;
+}
+.flat-row:hover { background:rgba(128,128,128,0.06); }
+
+.flat-path {
+  font-size:10px; color:var(--path-color);
+  font-family:'JetBrains Mono',monospace;
+  margin-bottom:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.flat-path .sep { margin:0 3px; opacity:.4; }
+
+.flat-task {
+  display:flex; align-items:flex-start; padding-left:2px;
+}
+
+.chk {
+  flex-shrink:0; width:14px; height:14px; margin-right:8px; margin-top:2px;
+  border:1.5px solid var(--border2); border-radius:3px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:border-color .15s;
+}
+.chk:hover { border-color:#666; }
+.chk svg { opacity:0; }
+.flat-row.done .chk svg, .tree-row.done .chk svg { opacity:1; }
+.flat-row.done .chk, .tree-row.done .chk { border-color:var(--text-dim); }
+
+.task-name {
+  font-size:13px; color:var(--text); font-weight:500;
+  line-height:1.5; word-break:break-word; flex:1;
+}
+.flat-row.done .task-name, .tree-row.done .task-name {
+  color:var(--done-fg); text-decoration:line-through;
+  text-decoration-color:var(--done-strike); font-weight:300;
+}
+.task-ts {
+  font-size:9px; color:var(--text-dim);
+  font-family:'JetBrains Mono',monospace; margin-top:1px;
+}
+/* pin icon — Material Symbol 'keep' */
+.pin {
+  flex-shrink:0; font-size:16px; margin-left:6px;
+  cursor:pointer; opacity:0;
+  align-self:center; transition:opacity .15s;
+  user-select:none;
+  font-family:'Material Symbols Outlined';
+  font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 20;
+  color:var(--text-dim);
+}
+.flat-row:hover .pin, .tree-row:hover .pin { opacity:0.35; }
+.pin:hover { opacity:0.75 !important; }
+.pin.is-par {
+  opacity:0.8;
+  font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 20;
+  color:var(--accent);
+}
+
+/* ── TREE MODE rows ── */
+/* top-level tree-node gets extra spacing between trees */
+.tree-node { margin:0; }
+.pv > .tree-node { margin-bottom:8px; }
+
+.tree-row {
+  display:flex; align-items:flex-start;
+  padding:2px 4px; border-radius:4px; margin:0;
+  user-select:none; cursor:default;
+}
+.tree-row:hover { background:rgba(128,128,128,0.06); }
+
+/* branch label (no checkbox) */
+.tree-branch-label {
+  font-size:12px; color:var(--text-mid); font-weight:400;
+  line-height:1.5; flex:1; word-break:break-word;
+}
+
+/* seq indicator */
+.seq-hint {
+  font-size:9px; color:var(--text-dim);
+  font-family:'JetBrains Mono',monospace;
+  margin-left:6px; align-self:center; flex-shrink:0;
+}
+
+/* tree children indented */
+.tree-children {
+  margin-left:14px;
+  padding-left:8px;
+  padding-top:3px;
+  border-left:1px solid var(--tree-line);
+}
+/* shared indicator look */
+.ind {
+  display:flex; align-items:center;
+  opacity:0; pointer-events:none;
+  color:var(--text-mid); font-size:11px;
+  transition:opacity .1s;
+}
+.ind-line { flex:1; height:1px; background:var(--accent); opacity:0.5; margin-left:4px; }
+.ind-plus { color:var(--accent); font-weight:500; }
+
+/* branch child add (single line inside children) */
+.tree-add {
+  position:relative; height:7px; min-height:7px; cursor:pointer;
+}
+.tree-add > .ind {
+  position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+}
+.tree-add:hover > .ind { opacity:0.9; }
+
+/* leaf split gap: upper half = child (indented), lower half = sibling (same level) */
+/* indicators fixed at gap center; only the hovered zone's indicator shows */
+.tree-add-split {
+  position:relative; height:13px;
+}
+.tree-add-split > .tas-zone {
+  position:absolute; left:0; right:0; height:50%; cursor:pointer; z-index:6;
+}
+.tas-child   { top:0; }
+.tas-sibling { bottom:0; }
+.tree-add-split > .ind {
+  position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+}
+.tas-child:hover ~ .ind-child { opacity:0.9; }
+.tas-sibling:hover ~ .ind-sibling { opacity:0.9; }
+
+.tree-row { position:relative; }
+/* inline input */
+.tree-inline-input {
+  background:transparent; border:none; outline:none;
+  border-bottom:1px solid var(--accent);
+  color:var(--text); font-size:13px;
+  font-family:'M PLUS 1',sans-serif; font-weight:400;
+  width:100%; padding:1px 2px; caret-color:var(--accent);
+}
+/* editable label */
+.tree-branch-label, .task-name { cursor:text; }
+
+/* hidden items in seq mode (tree view shows them dimmed) */
+.tree-row.seq-waiting {
+  opacity:0.35;
+}
+
+/* done divider */
+.done-div { display:flex; align-items:center; gap:10px; margin:18px 3px 10px; }
+.done-div-line { flex:1; height:1px; background:var(--border); }
+.done-div-label { font-size:9.5px; font-family:'JetBrains Mono',monospace; color:var(--text-dim); letter-spacing:.1em; }
+/* done group label */
+.done-group-label {
+  font-size:9.5px; font-family:'JetBrains Mono',monospace;
+  color:var(--text-dim); letter-spacing:.08em;
+  padding:6px 4px 2px; margin-top:4px;
+}
+/* priority icon buttons — same size/style as .pin */
+.tag-icons {
+  display:inline-flex; align-items:center; gap:0;
+  margin-left:6px; flex-shrink:0; align-self:center;
+}
+.tag-icon {
+  font-family:'Material Symbols Outlined';
+  font-variation-settings:'FILL' 0,'wght' 300,'GRAD' 0,'opsz' 20;
+  font-size:16px; cursor:pointer; opacity:0; transition:opacity .15s;
+  user-select:none; align-self:center; line-height:1;
+  color:var(--text-dim);
+}
+.flat-row:hover .tag-icon,
+.tree-row:hover .tag-icon { opacity:0.3; }
+.tag-icon:hover { opacity:0.75 !important; color:var(--text-dim) !important; }
+/* active (on) states — colored, always visible */
+.tag-icon.on {
+  opacity:0.8;
+  font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 20;
+}
+.tag-icon.on.ti-imp { color:#ff6644; }
+.tag-icon.on.ti-urg { color:#e6a800; }
+.tag-icon.on.ti-susp { color:#888; }
+.flat-row.susp, .tree-row.susp { opacity:0.5; }
+
+/* legend */
+.legend {
+  margin-top:9px; padding:9px 12px 9px 14px;
+  border:1px solid var(--border); border-radius:var(--r);
+  font-size:10.5px; font-family:'JetBrains Mono',monospace;
+  color:var(--text-dim); line-height:1.9;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+}
+.legend-row { display:flex; flex-direction:column; gap:2px; }
+.legend-item { display:block; }
+.legend-item code { background:rgba(128,128,128,0.1); padding:1px 4px; border-radius:2px; font-size:10px; }
+.legend-close {
+  flex-shrink:0; background:none; border:none; cursor:pointer;
+  color:var(--text-dim); font-size:13px; padding:0 2px; line-height:1;
+  transition:color .15s;
+}
+.legend-close:hover { color:var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="card">
+  <div class="tb">
+    <!-- segmented: edit / flat / tree — always visible left -->
+    <div class="tb-seg">
+      <button class="seg-btn" id="btn-edit" onclick="enterEdit()" title="編集"><span class="material-symbols-outlined">edit</span></button>
+      <button class="seg-btn" id="btn-tree" onclick="setViewMode('tree')" title="ツリー表示"><span class="material-symbols-outlined">checklist</span></button>
+      <button class="seg-btn active" id="btn-flat" onclick="setViewMode('flat')" title="フラット表示"><span class="material-symbols-outlined">priority</span></button>
+    </div>
+    <!-- actions: change based on mode -->
+    <div class="tb-actions" id="tb-actions">
+      <!-- preview actions -->
+      <span id="act-pv" style="display:flex;gap:4px;align-items:center;">
+        <button class="ibtn" id="copy-btn" onclick="doCopy()" title="コピー"><span class="material-symbols-outlined">copy_all</span><span class="flash">コピー済み</span></button>
+      </span>
+      <!-- edit actions -->
+      <span id="act-ed" style="display:none;gap:4px;align-items:center;">
+        <button class="ibtn" id="copy-btn-ed" onclick="doCopy()" title="コピー"><span class="material-symbols-outlined">copy_all</span></button>
+        <button class="tbtn danger" id="cleanup-btn" onclick="doCleanup()" title="クリーンアップ"><span class="material-symbols-outlined">cleaning_services</span></button>
+      </span>
+    </div>
+    <!-- right: legend + theme -->
+    <div class="tb-right">
+      <button class="ibtn" id="btn-legend" onclick="toggleLegend()" title="凡例"><span class="material-symbols-outlined">help</span></button>
+      <button class="ibtn" id="btn-theme" onclick="toggleTheme()" title="テーマ切替"><span class="material-symbols-outlined" id="theme-icon">light_mode</span></button>
+    </div>
+    <div class="stats-txt" id="stats2" style="margin-left:10px;"></div>
+  </div>
+  <div class="editor-wrap" id="editor-wrap"><div class="editor-hl" id="editor-hl" aria-hidden="true"></div><textarea id="editor" spellcheck="false"></textarea></div>
+  <div class="pv" id="preview"></div>
+</div>
+<div class="legend" id="legend" style="display:none">
+  <div class="legend-row">
+    <span class="legend-item"><code>-</code> シーケンス：同階層の最初の未完了のみ表示</span>
+    <span class="legend-item"><code>*</code> パラレル：常に表示（ピンアイコンで切替）</span>
+    <span class="legend-item"><code>[done:yyyymmddhhmmss]</code> チェックで自動付与</span>
+    <span class="legend-item">クリーンアップ：完了ツリーをテキスト末尾にアーカイブ</span>
+  </div>
+  <button class="legend-close" onclick="toggleLegend()">✕</button>
+</div>
+</div>
+<script>
+const SK = 'todo-v3';
+const DONE_RE = /\s*\[done(?::\d{14})?\]\s*$/;
+
+const editor  = document.getElementById('editor');
+const preview = document.getElementById('preview');
+let viewMode  = 'flat'; // 'flat' | 'tree'
+
+const DEFAULT = `- フェーズ1: 設計
+  - 要件定義
+  - アーキテクチャ設計
+  - レビュー
+- フェーズ2: 開発
+  * フロントエンド
+    - コンポーネント設計
+    - 実装
+    - テスト
+  * バックエンド
+    - API設計
+    - 実装
+    - テスト
+  - 結合テスト
+- フェーズ3: リリース
+  - ステージング確認
+  - 本番デプロイ
+  - ドキュメント整理`;
+
+// ── Storage ──
+const save = () => { try { localStorage.setItem(SK, editor.value); } catch(e){} };
+const load = () => { try { return localStorage.getItem(SK); } catch(e){ return null; } };
+
+// ── Timestamp ──
+function nowTs() {
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+// ── Parser ──
+const TAG_RE = /\s*\[(important|urgent|suspended)\]/gi;
+function parseLine(raw) {
+  const m = raw.match(/^(\s*)([-*]|\d+\.)\s+(.*)/);
+  if (!m) return null;
+  const indent = m[1].length;
+  const marker = m[2] === '*' ? '*' : '-';
+  let label = m[3].trim();
+  // Normalize links: [text](url) → store as-is in label, strip for processing only
+  const dm = label.match(/\s*\[done(?::(\d{14}))?\]\s*$/);
+  const done = !!dm;
+  const doneTs = dm ? (dm[1]||null) : null;
+  if (done) label = label.replace(DONE_RE,'').trimEnd();
+  // Extract priority tags
+  const tags = [];
+  let tm;
+  const tagRe = /\s*\[(important|urgent|suspended)\]/gi;
+  while ((tm = tagRe.exec(label)) !== null) tags.push(tm[1].toLowerCase());
+  label = label.replace(/\s*\[(important|urgent|suspended)\]/gi, '').trim();
+  const important = tags.includes('important');
+  const urgent    = tags.includes('urgent');
+  const suspended = tags.includes('suspended');
+  return { indent, marker, label, done, doneTs, important, urgent, suspended };
+}
+
+function buildTree(text) {
+  const lines = text.split('\n');
+  const roots = [];
+  const stack = [{ indent:-1, children:roots }];
+  lines.forEach((raw, lineNo) => {
+    const p = parseLine(raw);
+    if (!p) return;
+    const node = { id:String(lineNo), lineNo, marker:p.marker, label:p.label, done:p.done, doneTs:p.doneTs, important:p.important, urgent:p.urgent, suspended:p.suspended, children:[] };
+    while (stack.length > 1 && stack[stack.length-1].indent >= p.indent) stack.pop();
+    stack[stack.length-1].children.push(node);
+    stack.push({ indent:p.indent, ...node });
+  });
+  return roots;
+}
+
+// ── Tree helpers ──
+function fullyDone(n) {
+  if (n.done) return true;
+  if (!n.children.length) return false;
+  return n.children.every(c => fullyDone(c));
+}
+
+// visibleChildren: apply seq/par rules to siblings
+// '-' → only first undone; '*' → always shown
+function visibleChildren(nodes) {
+  const result = [];
+  let seqUsed = false;
+  nodes.forEach(n => {
+    if (fullyDone(n)) return;
+    if (n.marker === '*') {
+      result.push({ node:n, isNext:true });
+    } else {
+      if (!seqUsed) { result.push({ node:n, isNext:true }); seqUsed = true; }
+      else result.push({ node:n, isNext:false }); // waiting
+    }
+  });
+  return result;
+}
+
+// ── FLAT MODE ──
+// visibleForFlat: seq/par filter for a sibling list
+// '*' always included; '-' only first undone included
+function visibleForFlat(nodes) {
+  const result = [];
+  let seqUsed = false;
+  nodes.forEach(n => {
+    // Include if not fully done, OR if surfaced (all children done but self undone)
+    if (fullyDone(n) && !isSurfaced(n)) return;
+    if (n.done) return; // explicitly marked done
+    if (n.marker === '*') {
+      result.push(n);
+    } else {
+      if (!seqUsed) { result.push(n); seqUsed = true; }
+    }
+  });
+  return result;
+}
+
+// collectNextActionsOne: process a single node (no sibling filter — caller decides visibility).
+// collectNextActions: process a list of siblings with seq/par filter applied.
+// markerLineNo: the line whose marker (*/-) should be toggled by the pin icon.
+// For par-transparent nodes, it's the par node's lineNo.
+// For seq nodes, it's the node's own lineNo.
+function isSurfaced(n) {
+  return !n.done && n.children.length > 0 && n.children.every(c => fullyDone(c));
+}
+
+// Inherit important/urgent from ancestors
+function priorityOf(node, inheritedImportant=false, inheritedUrgent=false, inheritedSuspended=false) {
+  return {
+    important: node.important || inheritedImportant,
+    urgent:    node.urgent    || inheritedUrgent,
+    suspended: node.suspended || inheritedSuspended,
+  };
+}
+
+// Sort key: suspended always last (4), then both=0, important=1, urgent=2, none=3
+function prioritySortKey(imp, urg, susp) {
+  if (susp) return 4;
+  if (imp && urg) return 0;
+  if (imp)        return 1;
+  if (urg)        return 2;
+  return 3;
+}
+
+function collectNextActionsOne(n, path, out, markerLineNo, inhImp=false, inhUrg=false, inhSusp=false) {
+  if (n.done) return;
+  if (fullyDone(n) && !isSurfaced(n)) return;
+  const imp  = n.important || inhImp;
+  const urg  = n.urgent    || inhUrg;
+  const susp = n.suspended || inhSusp;
+
+  if (n.marker === '*') {
+    if (!n.children.length) {
+      out.push({ node:n, path:path.slice(), marker:'*', markerLineNo:n.lineNo, imp, urg, susp });
+    } else if (isSurfaced(n)) {
+      out.push({ node:n, path:path.slice(), marker:'*', markerLineNo:n.lineNo, imp, urg, susp });
+    } else {
+      collectNextActions(n.children, [...path, n.label], out, n.lineNo, '*', imp, urg, susp);
+    }
+  } else {
+    if (!n.children.length) {
+      out.push({ node:n, path:path.slice(), marker:'-', markerLineNo:n.lineNo, imp, urg, susp });
+    } else if (isSurfaced(n)) {
+      out.push({ node:n, path:path.slice(), marker:'-', markerLineNo:n.lineNo, imp, urg, susp });
+    } else {
+      collectNextActions(n.children, [...path, n.label], out, null, null, imp, urg, susp);
+    }
+  }
+}
+
+function collectNextActions(nodes, path, out, inheritedMarkerLineNo, inheritedMarker, inhImp=false, inhUrg=false, inhSusp=false) {
+  visibleForFlat(nodes).forEach(n => {
+    const imp  = n.important || inhImp;
+    const urg  = n.urgent    || inhUrg;
+    const susp = n.suspended || inhSusp;
+    if (n.marker === '*') {
+      collectNextActionsOne(n, path, out, n.lineNo, imp, urg, susp);
+    } else {
+      if (inheritedMarkerLineNo != null) {
+        if (!n.children.length) {
+          out.push({ node:n, path:path.slice(), marker:inheritedMarker, markerLineNo:inheritedMarkerLineNo, imp, urg, susp });
+        } else if (n.children.every(c => fullyDone(c))) {
+          out.push({ node:n, path:path.slice(), marker:inheritedMarker, markerLineNo:inheritedMarkerLineNo, imp, urg, susp });
+        } else {
+          collectNextActions(n.children, [...path, n.label], out, inheritedMarkerLineNo, inheritedMarker, imp, urg, susp);
+        }
+      } else {
+        collectNextActionsOne(n, path, out, n.lineNo, imp, urg, susp);
+      }
+    }
+  });
+}
+
+const CHK = `<svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.2 5.8L8 1" stroke="#555" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function tagIcons(lineNo, imp, urg, susp) {
+  const mkIcon = (icon, cls, tag, active) =>
+    `<span class="tag-icon ${cls}${active?' on':''}" title="${tag}" onclick="event.stopPropagation();toggleTag(${lineNo},'${tag}')">${icon}</span>`;
+  return `<span class="tag-icons">` +
+    mkIcon('star',         'ti-imp',  'important', imp) +
+    mkIcon('bolt',         'ti-urg',  'urgent',    urg) +
+    mkIcon('pause_circle', 'ti-susp', 'suspended', susp) +
+    `</span>`;
+}
+
+function renderFlat(tree) {
+  // active = not done themselves (surfaced nodes: all children done but self undone)
+  const active = tree.filter(n => !n.done);
+  const done   = tree.filter(n =>  n.done);  // only explicitly done top-level nodes
+
+  let html = '';
+
+  // collect all next actions — top-level nodes always all shown, no seq filter at root
+  const actions = [];
+  active.forEach(n => collectNextActionsOne(n, [], actions, null));
+
+  // Sort by priority: both=0, important=1, urgent=2, none=3
+  actions.sort((a, b) => prioritySortKey(a.imp, a.urg, a.susp) - prioritySortKey(b.imp, b.urg, b.susp));
+
+  actions.forEach(({node, path, markerLineNo, marker, imp, urg, susp}) => {
+    const pathStr = path.length
+      ? `<div class="flat-path">${path.map(esc).join('<span class="sep">›</span>')}</div>`
+      : '';
+    const icons = tagIcons(node.lineNo, imp, urg, susp);
+    html += `<div class="flat-row${susp?' susp':''}" data-lineno="${node.lineNo}">
+      ${pathStr}
+      <div class="flat-task">
+        <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
+        <div class="task-name">${renderLabel(node.label)}</div>
+        ${icons}
+      </div>
+    </div>`;
+  });
+
+  html += renderDoneSection(tree);  // pass full tree to catch done leaves anywhere
+  return html || '<p style="color:var(--text-dim);font-size:12px;padding:8px;">タスクがありません</p>';
+}
+
+// ── TREE MODE ──
+// Gap builders for inline-add zones.
+// simpleGap: one position, one indicator at fixed Y.
+function simpleGap(lineNo, position, indentPx) {
+  return `<div class="tree-add" style="padding-left:${indentPx}px" onclick="inlineAdd(${lineNo},'${position}')"><div class="ind"><span class="ind-plus">+</span><span class="ind-line"></span></div></div>`;
+}
+// splitGap: leaf trailing gap. Upper half (near row) = child (indented),
+// lower half (away) = sibling 'after' (same level). Indicator Y is fixed.
+function splitGap(lineNo) {
+  return `<div class="tree-add-split">
+    <div class="tas-zone tas-child" onclick="inlineAdd(${lineNo},'child')"></div>
+    <div class="tas-zone tas-sibling" onclick="inlineAdd(${lineNo},'after')"></div>
+    <div class="ind ind-child" style="padding-left:${IND_CHILD}px"><span class="ind-plus">+</span><span class="ind-line"></span></div>
+    <div class="ind ind-sibling" style="padding-left:${IND_SAME}px"><span class="ind-plus">+</span><span class="ind-line"></span></div>
+  </div>`;
+}
+
+function renderTree(tree) {
+  const active = tree.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+  // Top-level trees are independent — no seq filter. Render with gaps.
+  let html = renderTreeNodesTop(active);
+  html += renderDoneSection(tree);
+  return html || '<p style="color:var(--text-dim);font-size:12px;padding:8px;">タスクがありません</p>';
+}
+
+// Top-level (root list): no seq filter. Leading gap before the very first node;
+// after each node the gap is provided by renderTreeNode itself (split for leaf).
+function renderTreeNodesTop(nodes) {
+  let html = '';
+  const vis = nodes.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+  vis.forEach((n, i) => {
+    if (i === 0) html += simpleGap(n.lineNo, 'before', IND_SAME); // gap above first
+    html += renderTreeNode(n, false);
+  });
+  return html;
+}
+
+// parentLineNo: the line of the parent (for child inserts at list end). -1 = root.
+// listDepth: indent spaces for nodes at this list level (for gap indicators)
+function renderTreeNodes(nodes, forceWaiting=false, parentLineNo=-1) {
+  let html = '';
+  let seqUsed = false;
+  const visibleNodes = nodes.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+
+  if (!visibleNodes.length) {
+    // Empty child list: offer to add first child of parent
+    if (parentLineNo >= 0) html += simpleGap(parentLineNo, 'child', IND_SAME);
+    return html;
+  }
+
+  visibleNodes.forEach((n, idx) => {
+    const isSeqWaiting = n.marker !== '*' && (forceWaiting || seqUsed);
+    if (n.marker !== '*') seqUsed = true;
+    if (idx === 0) html += simpleGap(n.lineNo, 'before', IND_SAME); // gap above first child
+    html += renderTreeNode(n, isSeqWaiting);
+  });
+  return html;
+}
+
+function renderTreeNode(node, isWaiting) {
+  const hasKids = node.children.length > 0;
+  const allKidDone = hasKids && node.children.every(c => fullyDone(c));
+  const nodeSurfaced = hasKids && allKidDone && !node.done;
+  const waitCls = isWaiting ? ' seq-waiting' : '';
+  const suspCls  = node.suspended ? ' susp' : '';
+
+  if (!hasKids || nodeSurfaced) {
+    const isPar = node.marker === '*';
+    const pinSvg = `<span class="pin${isPar?' is-par':''}" title="${isPar?'パラレル → シーケンスに変更':'シーケンス → パラレルに変更'}" onclick="togglePin(${node.lineNo})">keep</span>`;
+    const leafIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
+    return `<div class="tree-node">
+      <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
+        <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
+        <div class="task-name" ondblclick="inlineEdit(${node.lineNo}, false)">${renderLabel(node.label)}</div>
+        ${leafIcons}
+        ${pinSvg}
+      </div>
+      ${splitGap(node.lineNo)}
+    </div>`;
+  }
+
+  // branch
+  const bIsPar = node.marker === '*';
+  const bPinSvg = `<span class="pin${bIsPar?' is-par':''}" title="${bIsPar?'パラレル → シーケンスに変更':'シーケンス → パラレルに変更'}" onclick="togglePin(${node.lineNo})">keep</span>`;
+  const undoneKids = node.children.filter(c => !c.done && !(fullyDone(c) && !isSurfaced(c)));
+  const branchIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
+  return `<div class="tree-node">
+    <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
+      <div class="tree-branch-label" ondblclick="inlineEdit(${node.lineNo}, false)">${esc(node.label)}</div>
+      ${branchIcons}
+      ${bPinSvg}
+    </div>
+    <div class="tree-children">
+      ${renderTreeNodes(undoneKids, isWaiting, node.lineNo)}
+    </div>
+    ${simpleGap(node.lineNo, 'after', IND_SAME)}
+  </div>`;
+}
+
+// ── Done section (shared) ──
+// Collect every individually done leaf node (true leaf with [done] marker)
+// Traverses the entire tree — including active branches — to find done leaves
+function collectDoneLeaves(node, ancestors, out) {
+  if (!node.children.length) {
+    if (node.done) out.push({ node, ancestors: ancestors.slice() });
+    return;
+  }
+  // If this branch node itself is done, collect all its leaf descendants as done
+  if (node.done) {
+    collectAllLeaves(node, ancestors, out);
+    return;
+  }
+  // Otherwise recurse into children
+  node.children.forEach(c => collectDoneLeaves(c, [...ancestors, node.label], out));
+}
+
+// Collect all leaves under a node (used when a branch is marked done)
+function collectAllLeaves(node, ancestors, out) {
+  if (!node.children.length) {
+    out.push({ node, ancestors: ancestors.slice() });
+    return;
+  }
+  node.children.forEach(c => collectAllLeaves(c, [...ancestors, node.label], out));
+}
+
+function renderDoneSection(allNodes) {
+  if (!allNodes.length) return '';
+  const leaves = [];
+  allNodes.forEach(n => collectDoneLeaves(n, [], leaves));
+  if (!leaves.length) return '';
+
+  // Sort: newest first
+  leaves.sort((a, b) => {
+    const ta = a.node.doneTs || '';
+    const tb = b.node.doneTs || '';
+    if (tb !== ta) return tb.localeCompare(ta);
+    return b.node.lineNo - a.node.lineNo;
+  });
+
+  // Group by time period
+  function timePeriodLabel(ts) {
+    if (!ts || ts.length < 8) return 'その他';
+    const y = parseInt(ts.slice(0,4)), mo = parseInt(ts.slice(4,6))-1;
+    const d = parseInt(ts.slice(6,8));
+    const done = new Date(y, mo, d);
+    const now  = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.round((today - done) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays <= 3) return `${diffDays} days ago`;
+    return `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+
+  // Group leaves
+  const groups = [];
+  let curLabel = null;
+  leaves.forEach(({node, ancestors}) => {
+    const lbl = timePeriodLabel(node.doneTs);
+    if (lbl !== curLabel) { groups.push({ label:lbl, items:[] }); curLabel = lbl; }
+    groups[groups.length-1].items.push({ node, ancestors });
+  });
+
+  let html = `<div class="done-div">
+    <div class="done-div-line"></div>
+    <div class="done-div-label">完了 ${leaves.length}</div>
+    <div class="done-div-line"></div>
+  </div>`;
+
+  groups.forEach(({ label, items }) => {
+    html += `<div class="done-group-label">${esc(label)}</div>`;
+    items.forEach(({node, ancestors}) => {
+      const pathStr = ancestors.length
+        ? `<div class="flat-path">${ancestors.map(esc).join('<span class="sep">›</span>')}</div>`
+        : '';
+      const ts = node.doneTs ? `<div class="task-ts">${fmtTs(node.doneTs)}</div>` : '';
+      html += `<div class="flat-row done" data-lineno="${node.lineNo}">
+        ${pathStr}
+        <div class="flat-task">
+          <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
+          <div class="task-name">${renderLabel(node.label)}${ts}</div>
+        </div>
+      </div>`;
+    });
+  });
+  return html;
+}
+
+// ── Render dispatch ──
+function render() {
+  const tree = buildTree(editor.value);
+  preview.innerHTML = viewMode === 'flat' ? renderFlat(tree) : renderTree(tree);
+  updateStats(tree);
+}
+
+// ── View mode toggle ──
+function setViewMode(mode) {
+  viewMode = mode;
+  setEditMode(false);
+  render();
+}
+
+// ── Stats ──
+function countLeaves(nodes, res={total:0,done:0}) {
+  nodes.forEach(n => {
+    if (!n.children.length) { res.total++; if(n.done) res.done++; }
+    else countLeaves(n.children, res);
+  });
+  return res;
+}
+function updateStats(tree) {
+  const {total,done} = countLeaves(tree);
+  const pct = total ? Math.round(done/total*100) : 0;
+  const t = total ? `<b>${done}</b> / ${total} &nbsp;·&nbsp; ${pct}%` : '—';
+  document.getElementById('stats2').innerHTML = t;
+  document.getElementById('cleanup-btn').style.opacity = tree.some(n=>fullyDone(n)) ? '1' : '0.3';
+}
+
+// ── Inline tree edit ──
+
+// inlineAdd: insert a new line
+// position='before': insert as sibling BEFORE lineNo (above this node)
+// position='after':  insert as sibling AFTER this node's subtree
+// position='child':  insert as first child of lineNo
+// Indent is handled by nested .tree-children (22px each). Indicators inside a
+// tree-node are positioned RELATIVE to that node's left edge:
+//   same-level sibling → align with checkbox (~4px)
+//   one level deeper (child) → +22px
+const IND_SAME  = 4;
+const IND_CHILD = 4 + 22;
+
+function inlineAdd(lineNo, position) {
+  const lines = editor.value.split('\n');
+  const refLine = lines[lineNo];
+  const indent  = (refLine.match(/^(\s*)/)[1] || '');
+  let insertAfter, newIndent;
+
+  if (position === 'before') {
+    // Insert immediately before this line (as same-level sibling above)
+    // If lineNo-1 is blank/separator area, still insert at lineNo-1
+    insertAfter = lineNo - 1;
+    newIndent   = indent;
+  } else if (position === 'child') {
+    // Insert as last child: find end of this node's subtree
+    const myIndent = indent.length;
+    insertAfter = lineNo;
+    for (let i = lineNo + 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      if (lines[i].match(/^(\s*)/)[1].length <= myIndent) break;
+      insertAfter = i;
+    }
+    newIndent = indent + '  ';
+  } else { // position === 'after'
+    // insert after end of this node's subtree, but before '---' separator
+    const myIndent = indent.length;
+    insertAfter = lineNo;
+    for (let i = lineNo + 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      if (lines[i].trim() === '---') break; // stop before separator
+      if (lines[i].match(/^(\s*)/)[1].length <= myIndent) break;
+      insertAfter = i;
+    }
+    newIndent = indent;
+  }
+
+  const newLine = newIndent + '- ';
+  lines.splice(insertAfter + 1, 0, newLine);
+  editor.value = lines.join('\n');
+  save(); render(); updateHL();
+  inlineEdit(insertAfter + 1, true);
+}
+
+// inlineEdit: replace a task-name span with an input
+function inlineEdit(lineNo, isNew) {
+  // find the rendered row
+  const row = document.querySelector(`[data-lineno="${lineNo}"]`);
+  if (!row) return;
+  const nameEl = row.querySelector('.task-name, .tree-branch-label');
+  if (!nameEl) return;
+
+  const lines = editor.value.split('\n');
+  const line  = lines[lineNo];
+  const m     = line.match(/^(\s*[-*]\s+)(.*)/);
+  if (!m) return;
+  const prefix  = m[1];
+  // strip tags/done from current label for editing
+  let currentLabel = m[2]
+    .replace(/\s*\[done(?::\d{14})?\]/gi, '')
+    .replace(/\s*\[(important|urgent|suspended)\]/gi, '')
+    .trim();
+
+  const input = document.createElement('input');
+  input.className = 'tree-inline-input';
+  input.value = currentLabel;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  // Ignore the very first blur that can fire during the same render tick
+  let ready = false;
+  setTimeout(() => { ready = true; }, 50);
+
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const val = input.value.trim();
+    const lines2 = editor.value.split('\n');
+    if (val === '') {
+      lines2.splice(lineNo, 1); // empty → delete the line
+    } else {
+      const tagSuffix = (m[2].match(/\s*(\[(important|urgent|suspended)\])+/gi) || []).join('');
+      const doneSuffix = (m[2].match(/\s*\[done(?::\d{14})?\]/i) || [''])[0];
+      lines2[lineNo] = prefix + val + tagSuffix + doneSuffix;
+    }
+    editor.value = lines2.join('\n');
+    save(); render(); updateHL();
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); committed=false; commit(); }
+    if (e.key === 'Escape') { committed = true; render(); } // cancel without commit
+  });
+  input.addEventListener('blur', () => {
+    if (!ready) { input.focus(); return; } // ignore premature blur, keep focus
+    commit();
+  });
+}
+
+// ── Toggle tag ([important] / [urgent] / [suspended]) ──
+function toggleTag(lineNo, tag) {
+  const lines = editor.value.split('\n');
+  const line = lines[lineNo];
+  if (!line) return;
+  const tagStr = `[${tag}]`;
+  const tagRe  = new RegExp(`\\s*\\[${tag}\\]`, 'i');
+  if (tagRe.test(line)) {
+    lines[lineNo] = line.replace(tagRe, '').trimEnd();
+  } else {
+    // Insert before [done] if present, else append
+    if (/\s*\[done/.test(line)) {
+      lines[lineNo] = line.replace(/(\s*\[done)/, ` ${tagStr}$1`);
+    } else {
+      lines[lineNo] = line.trimEnd() + ` ${tagStr}`;
+    }
+  }
+  editor.value = lines.join('\n');
+  save(); render(); updateHL();
+}
+
+// ── Toggle pin (seq <-> par) ──
+function togglePin(lineNo) {
+  const lines = editor.value.split('\n');
+  const line = lines[lineNo];
+  if (!line) return;
+  const m = line.match(/^(\s*)([-*])(\s+.*)/);
+  if (!m) return;
+  lines[lineNo] = m[1] + (m[2] === '*' ? '-' : '*') + m[3];
+  editor.value = lines.join('\n');
+  save(); render(); updateHL();
+}
+
+// ── Toggle done ──
+function toggleDone(lineNo) {
+  const lines = editor.value.split('\n');
+  const line = lines[lineNo];
+  if (!line) return;
+
+  const wasDone = DONE_RE.test(line);
+  lines[lineNo] = wasDone ? line.replace(DONE_RE, '') : line.trimEnd() + ` [done:${nowTs()}]`;
+
+  if (wasDone) {
+    // Also strip [done] from all ancestor lines (lines above with smaller indent)
+    const myIndent = lines[lineNo].match(/^(\s*)/)[1].length;
+    let curIndent = myIndent;
+    for (let i = lineNo - 1; i >= 0; i--) {
+      if (!lines[i].trim()) continue;
+      const ind = lines[i].match(/^(\s*)/)[1].length;
+      if (ind < curIndent) {
+        // This is an ancestor — strip [done] if present
+        if (DONE_RE.test(lines[i])) lines[i] = lines[i].replace(DONE_RE, '');
+        curIndent = ind;
+        if (ind === 0) break; // reached root
+      }
+    }
+
+    // Check if this line is below the --- separator
+    const SEP = '---';
+    const sepIdx = lines.findIndex(l => l.trim() === SEP);
+    if (sepIdx >= 0 && lineNo > sepIdx) {
+      // Find the root-level block (indent=0) containing lineNo
+      let blockStart = lineNo;
+      for (let i = lineNo; i >= 0; i--) {
+        if (!lines[i].trim()) continue;
+        if (lines[i].match(/^(\s*)/)[1].length === 0) { blockStart = i; break; }
+      }
+      let blockEnd = blockStart;
+      for (let i = blockStart + 1; i < lines.length; i++) {
+        if (lines[i].trim() === SEP) break;
+        if (!lines[i].trim()) { blockEnd = i; continue; }
+        if (lines[i].match(/^(\s*)/)[1].length === 0) break;
+        blockEnd = i;
+      }
+      const block = lines.slice(blockStart, blockEnd + 1);
+      let removeStart = blockStart;
+      let removeEnd = blockEnd;
+      if (removeStart > 0 && !lines[removeStart-1].trim()) removeStart--;
+      const remaining = [...lines.slice(0, removeStart), ...lines.slice(removeEnd + 1)];
+      const newSepIdx = remaining.findIndex(l => l.trim() === SEP);
+      let insertAt = newSepIdx >= 0 ? newSepIdx : remaining.length;
+      while (insertAt > 0 && !remaining[insertAt-1].trim()) insertAt--;
+      const out = [
+        ...remaining.slice(0, insertAt),
+        '',
+        ...block,
+        ...remaining.slice(insertAt)
+      ];
+      editor.value = out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+      save(); render(); updateHL();
+      return;
+    }
+  }
+
+  editor.value = lines.join('\n');
+  save(); render(); updateHL();
+}
+
+// ── Cleanup ──
+function doCleanup() {
+  const SEP = '---';
+  const lines = editor.value.split('\n');
+
+  // Split text at separator: only parse the active section
+  const sepIdx = lines.findIndex(l => l.trim() === SEP);
+  const activeLines = sepIdx >= 0 ? lines.slice(0, sepIdx) : lines;
+  const existingArchive = sepIdx >= 0 ? lines.slice(sepIdx + 1) : [];
+
+  // Build tree from active section only
+  const activeText = activeLines.join('\n');
+  const tree = buildTree(activeText);
+
+  // doneTrees = fully done top-level nodes (all leaves have [done])
+  // Only move trees where ALL leaves have [done] — partial trees stay
+  const doneTrees = tree.filter(n => fullyDone(n) && !isSurfaced(n));
+  if (!doneTrees.length) return;
+
+  const count = doneTrees.length;
+  if (!confirm(`完了済みのツリーが ${count} 件あります。\nテキスト末尾にアーカイブしますか？`)) return;
+
+  function lastLine(node) {
+    if (!node.children.length) return node.lineNo;
+    return Math.max(node.lineNo, ...node.children.map(lastLine));
+  }
+  function blockOf(n) { return activeLines.slice(n.lineNo, lastLine(n) + 1); }
+
+  const activeTrees = tree.filter(n => !fullyDone(n));
+  const activeBlocks = activeTrees.map(blockOf);
+  const doneBlocks = doneTrees.map(n => ({ block: blockOf(n), ts: latestTs(n) }));
+  doneBlocks.sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+
+  const out = [];
+  activeBlocks.forEach((b, i) => { if (i) out.push(''); out.push(...b); });
+  out.push('', SEP);
+  if (existingArchive.length) out.push(...existingArchive);
+  doneBlocks.forEach(({ block }) => { out.push(''); out.push(...block); });
+
+  editor.value = out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  save(); render(); updateHL();
+}
+
+function latestTs(n) {
+  if (n.doneTs) return n.doneTs;
+  if (!n.children.length) return '';
+  return n.children.map(latestTs).sort().reverse()[0] || '';
+}
+
+// ── Edit mode ──
+function setSegActive(id) {
+  // Exclusively activate one seg button
+  ['btn-edit','btn-tree','btn-flat'].forEach(i =>
+    document.getElementById(i).classList.toggle('active', i === id)
+  );
+}
+
+function setEditMode(isEdit) {
+  document.getElementById('editor-wrap').style.display = isEdit ? 'block' : 'none';
+  preview.style.display = isEdit ? 'none' : 'block';
+  document.getElementById('act-pv').style.display = isEdit ? 'none' : 'flex';
+  document.getElementById('act-ed').style.display = isEdit ? 'flex' : 'none';
+  setSegActive(isEdit ? 'btn-edit' : (viewMode === 'tree' ? 'btn-tree' : 'btn-flat'));
+}
+
+function enterEdit() {
+  setEditMode(true);
+  updateHL();
+  editor.focus();
+  editor.selectionStart = 0;
+  editor.selectionEnd   = 0;
+  editor.scrollTop      = 0;
+}
+editor.addEventListener('input', () => { save(); render(); updateHL(); });
+editor.addEventListener('scroll', () => {
+  const hl = document.getElementById('editor-hl');
+  hl.scrollTop  = editor.scrollTop;
+  hl.scrollLeft = editor.scrollLeft;
+});
+
+function updateHL() {
+  const hl = document.getElementById('editor-hl');
+  if (!hl) return;
+  // Sync overlay size to textarea
+  hl.style.height = editor.offsetHeight + 'px';
+  const lines = editor.value.split('\n');
+  const html = lines.map(line => {
+    // Escape HTML
+    const safe = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Classify line
+    const isDone = /\[done(?::\d{14})?\]/.test(line);
+    const isSusp = /\[suspended\]/i.test(line);
+    if (isDone || isSusp) {
+      return `<span class="${isDone ? 'hl-done' : 'hl-susp'}">${safe}</span>`;
+    }
+    // Highlight marker + tags inline
+    return safe
+      .replace(/^(\s*)([-*]|\d+\.)/,
+        (m, sp, mk) => sp + `<span class="hl-marker">${mk}</span>`)
+      .replace(/\[(important)\]/gi, '<span class="hl-imp">[$1]</span>')
+      .replace(/\[(urgent)\]/gi,    '<span class="hl-urg">[$1]</span>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+        '<span style="color:var(--accent);opacity:0.8">[$1]($2)</span>');
+  }).join('\n');
+  hl.innerHTML = html;
+}
+let isComposing = false;
+editor.addEventListener('compositionstart', () => { isComposing = true; });
+editor.addEventListener('compositionend', () => { isComposing = false; });
+
+// Capture Alt+arrow at document level to intercept before browser default
+document.addEventListener('keydown', e => {
+  if (document.activeElement !== editor) return;
+  if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  e.preventDefault(); // prevent browser word-jump before keydown fires on textarea
+}, true); // capture phase
+
+editor.addEventListener('keydown', e => {
+  if (isComposing) return;
+
+  // Alt+Up / Alt+Down: move line(s)
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && document.activeElement === editor) {
+    e.preventDefault();
+    const val   = editor.value;
+    const lines = val.split('\n');
+    const selStart = editor.selectionStart;
+    const selEnd   = editor.selectionEnd;
+    const dir = e.key === 'ArrowUp' ? -1 : 1;
+
+    // Find first and last line index of selection
+    const lineStart = val.lastIndexOf('\n', selStart - 1) + 1;
+    const lineEnd   = selEnd > 0 ? (val.indexOf('\n', selEnd - 1) < 0 ? val.length : val.indexOf('\n', selEnd - 1)) : lineStart;
+
+    // Convert char positions to line indices
+    function charToLineIdx(pos) {
+      return val.slice(0, pos).split('\n').length - 1;
+    }
+    const firstLine = charToLineIdx(selStart);
+    const lastLine  = charToLineIdx(Math.max(selStart, selEnd - 1));
+
+    // Can't move beyond boundaries
+    if (dir === -1 && firstLine === 0) return;
+    if (dir ===  1 && lastLine === lines.length - 1) return;
+
+    // Swap the block with the adjacent line
+    const newLines = [...lines];
+    if (dir === -1) {
+      // Move block up: swap with line above firstLine
+      const pivot = firstLine - 1;
+      const moved = newLines.splice(pivot, 1)[0];
+      newLines.splice(lastLine, 0, moved);
+    } else {
+      // Move block down: swap with line below lastLine
+      const pivot = lastLine + 1;
+      const moved = newLines.splice(pivot, 1)[0];
+      newLines.splice(firstLine, 0, moved);
+    }
+
+    editor.value = newLines.join('\n');
+
+    // Restore selection shifted by dir * (length of swapped line + 1 newline)
+    const swapLine = dir === -1 ? lines[firstLine - 1] : lines[lastLine + 1];
+    const delta = dir * (swapLine.length + 1);
+    editor.selectionStart = selStart + delta;
+    editor.selectionEnd   = selEnd   + delta;
+    save(); render(); updateHL();
+    return;
+  }
+
+  if (e.key==='Enter') {
+    e.preventDefault();
+    const val=editor.value, pos=editor.selectionStart;
+    const ls=val.lastIndexOf('\n',pos-1)+1;
+    const lt=val.slice(ls,pos);
+    const bm=lt.match(/^(\s*)([-*]|\d+\.)\s+(.*)/);
+    const im=lt.match(/^(\s+)/);
+    let ins='\n';
+    if (bm) {
+      if (!bm[3].replace(DONE_RE,'').trim()) {
+        editor.value=val.slice(0,ls)+'\n'+val.slice(pos);
+        editor.selectionStart=editor.selectionEnd=ls+1; updateHL(); return;
+      }
+      const bc=bm[2];
+      // numbers increment; '*' and '-' both continue as '-'
+      ins='\n'+bm[1]+(bc.match(/\d/)?(parseInt(bc)+1)+'. ':'- ');
+    } else if(im) ins='\n'+im[1];
+    const nv=val.slice(0,pos)+ins+val.slice(editor.selectionEnd);
+    editor.value=nv; editor.selectionStart=editor.selectionEnd=pos+ins.length; updateHL();
+  }
+  if (e.key==='Tab') {
+    e.preventDefault();
+    const val=editor.value;
+    const selStart=editor.selectionStart, selEnd=editor.selectionEnd;
+
+    if (selStart !== selEnd) {
+      // Multi-char selection: indent/outdent all affected lines
+      const lineStart = val.lastIndexOf('\n', selStart-1)+1;
+      const lineEnd   = val.lastIndexOf('\n', selEnd-1)+1;
+      // Split into: before, selected lines, after
+      const before = val.slice(0, lineStart);
+      const after  = val.slice(val.indexOf('\n', selEnd) + 1 || val.length);
+      // Grab all lines in selection
+      const selectedText = val.slice(lineStart, val.indexOf('\n', selEnd-1) < 0 ? val.length : val.indexOf('\n', selEnd-1)+1 || val.length);
+      // Actually: get from lineStart to end of last selected line
+      const lastLineEnd = selEnd >= val.length ? val.length : (val.indexOf('\n', selEnd) < 0 ? val.length : val.indexOf('\n', selEnd));
+      const block = val.slice(lineStart, lastLineEnd);
+      const lines = block.split('\n');
+
+      let newLines, startDelta=0, endDelta=0;
+      if (e.shiftKey) {
+        newLines = lines.map(l => { const rm=l.match(/^ {1,2}/)?.[0]?.length||0; endDelta-=rm; return l.slice(rm); });
+        startDelta = lines[0].match(/^ {1,2}/)?.[0]?.length||0;
+        startDelta = -startDelta;
+      } else {
+        newLines = lines.map(l => '  '+l);
+        startDelta = 2; endDelta = lines.length * 2;
+      }
+      const newBlock = newLines.join('\n');
+      editor.value = val.slice(0, lineStart) + newBlock + val.slice(lastLineEnd); updateHL();
+      editor.selectionStart = Math.max(lineStart, selStart + startDelta);
+      editor.selectionEnd   = selEnd + endDelta;
+    } else {
+      // No selection: single line indent/outdent
+      const ls=val.lastIndexOf('\n',selStart-1)+1;
+      if (e.shiftKey) {
+        const rm=val.slice(ls).match(/^ {1,2}/)?.[0]?.length||0;
+        if (rm) {
+          editor.value=val.slice(0,ls)+val.slice(ls+rm);
+          editor.selectionStart=editor.selectionEnd=Math.max(ls, selStart-rm);
+        }
+      } else {
+        editor.value=val.slice(0,ls)+'  '+val.slice(ls);
+        editor.selectionStart=editor.selectionEnd=selStart+2;
+      }
+    }
+  }
+});
+
+// ── Copy ──
+function doCopy() {
+  navigator.clipboard.writeText(editor.value).then(() => {
+    const b=document.getElementById('copy-btn');
+    b.classList.add('flashed');
+    setTimeout(()=>b.classList.remove('flashed'),1500);
+  }).catch(()=>{
+    const t=document.createElement('textarea');
+    t.value=editor.value;t.style.cssText='position:fixed;opacity:0';
+    document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);
+  });
+}
+
+function fmtTs(ts) {
+  if (ts.length < 12) return ts;
+  return `${ts.slice(0,4)}-${ts.slice(4,6)}-${ts.slice(6,8)} ${ts.slice(8,10)}:${ts.slice(10,12)}`;
+}
+// Build a tree-add zone element
+function makeTreeAdd(lineNo, position, indentPx, label) {
+  return `<div class="tree-add" style="padding-left:${indentPx}px" onclick="inlineAdd(${lineNo},'${position}')"><div class="tree-add-inner">+<span class="tree-add-line"></span></div></div>`;
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Render label: escape HTML then linkify [text](url)
+function renderLabel(label) {
+  return esc(label).replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (_, text, url) => `<a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(200,255,0,0.3)">${text}</a>`
+  );
+}
+
+// ── Legend ──
+function toggleLegend() {
+  const el = document.getElementById('legend');
+  const btn = document.getElementById('btn-legend');
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : 'flex';
+  btn.classList.toggle('active', !visible);
+}
+
+// ── Theme ──
+let isLight = false;
+function toggleTheme() {
+  isLight = !isLight;
+  document.documentElement.classList.toggle('light', isLight);
+  document.getElementById('theme-icon').textContent = isLight ? 'dark_mode' : 'light_mode';
+  try { localStorage.setItem('todo-theme', isLight ? 'light' : 'dark'); } catch(e){}
+}
+
+// ── Init ──
+try { if (localStorage.getItem('todo-theme') === 'light') { isLight = true; document.documentElement.classList.add('light'); } } catch(e){}
+document.getElementById('theme-icon').textContent = isLight ? 'dark_mode' : 'light_mode';
+editor.value = load() ?? DEFAULT;
+render();
+updateHL();
+
+// ── PWA: register service worker ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.warn('SW registration failed:', err);
+    });
+  });
+}
+// Keep overlay height in sync when textarea is resized
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => updateHL()).observe(editor);
+}
+</script>
+</body>
+</html>
