@@ -126,24 +126,34 @@ body {
 .editor-wrap {
   display:none; position:relative;
 }
+/* textarea and overlay MUST share identical box metrics for alignment */
+.editor-wrap textarea,
+.editor-hl {
+  box-sizing:border-box;
+  width:100%; min-height:700px;
+  margin:0; padding:14px;
+  border:0 solid transparent;
+  font-family:'Source Han Code JP','源ノ角ゴシック Code JP','M PLUS 1',monospace;
+  font-size:13px; line-height:1.85; font-weight:400;
+  letter-spacing:0;
+  white-space:pre-wrap; word-break:break-word; overflow-wrap:break-word;
+  tab-size:2;
+}
 .editor-wrap textarea {
-  display:block; width:100%; min-height:700px;
+  display:block; position:relative; z-index:1;
   background:transparent; color:transparent;
-  border:none; outline:none; padding:14px;
-  font-family:'Source Han Code JP','源ノ角ゴシック Code JP','M PLUS 1',monospace; font-size:13px; line-height:1.85; font-weight:400;
-  resize:vertical; tab-size:2; caret-color:var(--accent);
-  position:relative; z-index:1;
-  white-space:pre-wrap; word-wrap:break-word;
+  outline:none; resize:vertical; caret-color:var(--accent);
+  overflow:auto;
 }
 .editor-hl {
-  position:absolute; top:0; left:0; width:100%; min-height:700px;
-  padding:14px; pointer-events:none;
-  font-family:'Source Han Code JP','源ノ角ゴシック Code JP','M PLUS 1',monospace; font-size:13px; line-height:1.85; font-weight:400;
-  white-space:pre-wrap; word-wrap:break-word;
-  overflow:hidden; tab-size:2;
+  position:absolute; top:0; left:0; z-index:0;
+  pointer-events:none;
   color:var(--text); background:var(--surface);
-  z-index:0;
+  overflow:hidden;
 }
+/* selection on the transparent textarea shows accent highlight */
+.editor-wrap textarea::selection { background:rgba(200,255,0,0.25); }
+.editor-wrap textarea::-moz-selection { background:rgba(200,255,0,0.25); }
 /* highlight colors */
 .hl-done    { color:var(--text-dim); }
 .hl-susp    { color:var(--text-dim); opacity:0.5; }
@@ -221,10 +231,31 @@ body {
 
 .tree-row {
   display:flex; align-items:flex-start;
-  padding:2px 4px; border-radius:4px; margin:0;
-  user-select:none; cursor:default;
+  padding:2px 4px 2px 18px; border-radius:4px; margin:0;
+  user-select:none; cursor:default; position:relative;
 }
 .tree-row:hover { background:rgba(128,128,128,0.06); }
+/* drag handle (vertical dots) on left */
+.drag-handle {
+  position:absolute; left:2px; top:0; bottom:0;
+  width:14px; display:flex; align-items:center; justify-content:center;
+  cursor:grab; opacity:0; transition:opacity .12s;
+  color:var(--text-dim);
+  font-family:'Material Symbols Outlined'; font-size:16px;
+}
+.tree-row:hover .drag-handle { opacity:0.45; }
+.drag-handle:hover { opacity:0.9 !important; }
+.drag-handle:active { cursor:grabbing; }
+/* row being dragged */
+.tree-node.dragging { opacity:0.4; }
+/* drop indicator line */
+.drop-indicator {
+  pointer-events:none;
+  display:flex; align-items:center;
+  height:0;
+}
+.drop-indicator .ind-plus { color:var(--accent); font-weight:500; }
+.drop-indicator .ind-line { flex:1; height:1px; background:var(--accent); opacity:0.6; margin-left:4px; }
 
 /* branch label (no checkbox) */
 .tree-branch-label {
@@ -331,6 +362,8 @@ body {
 .tag-icon.on.ti-imp { color:#ff6644; }
 .tag-icon.on.ti-urg { color:#e6a800; }
 .tag-icon.on.ti-susp { color:#888; }
+.tag-icon.ti-del { color:var(--text-dim); }
+.tag-icon.ti-del:hover { color:#f55 !important; opacity:0.9 !important; }
 .flat-row.susp, .tree-row.susp { opacity:0.5; }
 
 /* legend */
@@ -424,6 +457,29 @@ const DEFAULT = `- フェーズ1: 設計
 
 // ── Storage ──
 const save = () => { try { localStorage.setItem(SK, editor.value); } catch(e){} };
+
+// ── Undo history ──
+let _undoStack = [];
+let _redoStack = [];
+const UNDO_LIMIT = 100;
+// snapshot current value BEFORE a mutating action
+function pushUndo() {
+  _undoStack.push(editor.value);
+  if (_undoStack.length > UNDO_LIMIT) _undoStack.shift();
+  _redoStack = []; // new action clears redo
+}
+function doUndo() {
+  if (!_undoStack.length) return;
+  _redoStack.push(editor.value);
+  editor.value = _undoStack.pop();
+  save(); render(); updateHL();
+}
+function doRedo() {
+  if (!_redoStack.length) return;
+  _undoStack.push(editor.value);
+  editor.value = _redoStack.pop();
+  save(); render(); updateHL();
+}
 const load = () => { try { return localStorage.getItem(SK); } catch(e){ return null; } };
 
 // ── Timestamp ──
@@ -595,7 +651,10 @@ const CHK = `<svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1
 function tagIcons(lineNo, imp, urg, susp) {
   const mkIcon = (icon, cls, tag, active) =>
     `<span class="tag-icon ${cls}${active?' on':''}" title="${tag}" onclick="event.stopPropagation();toggleTag(${lineNo},'${tag}')">${icon}</span>`;
+  const delBtn =
+    `<span class="tag-icon ti-del" title="削除" onclick="event.stopPropagation();deleteLine(${lineNo})">delete</span>`;
   return `<span class="tag-icons">` +
+    delBtn +
     mkIcon('star',         'ti-imp',  'important', imp) +
     mkIcon('bolt',         'ti-urg',  'urgent',    urg) +
     mkIcon('pause_circle', 'ti-susp', 'suspended', susp) +
@@ -705,8 +764,12 @@ function renderTreeNode(node, isWaiting) {
     const isPar = node.marker === '*';
     const pinSvg = `<span class="pin${isPar?' is-par':''}" title="${isPar?'パラレル → シーケンスに変更':'シーケンス → パラレルに変更'}" onclick="togglePin(${node.lineNo})">keep</span>`;
     const leafIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
-    return `<div class="tree-node">
+    return `<div class="tree-node" data-node-line="${node.lineNo}">
       <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
+        <div class="drag-handle" draggable="true"
+             onmousedown="event.stopPropagation()"
+             ondragstart="dragStart(event,${node.lineNo})"
+             ondragend="dragEnd(event)" title="ドラッグで移動">drag_indicator</div>
         <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
         <div class="task-name" ondblclick="inlineEdit(${node.lineNo}, false)">${renderLabel(node.label)}</div>
         ${leafIcons}
@@ -721,8 +784,12 @@ function renderTreeNode(node, isWaiting) {
   const bPinSvg = `<span class="pin${bIsPar?' is-par':''}" title="${bIsPar?'パラレル → シーケンスに変更':'シーケンス → パラレルに変更'}" onclick="togglePin(${node.lineNo})">keep</span>`;
   const undoneKids = node.children.filter(c => !c.done && !(fullyDone(c) && !isSurfaced(c)));
   const branchIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
-  return `<div class="tree-node">
+  return `<div class="tree-node" data-node-line="${node.lineNo}">
     <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
+      <div class="drag-handle" draggable="true"
+           onmousedown="event.stopPropagation()"
+           ondragstart="dragStart(event,${node.lineNo})"
+           ondragend="dragEnd(event)" title="ドラッグで移動">drag_indicator</div>
       <div class="tree-branch-label" ondblclick="inlineEdit(${node.lineNo}, false)">${esc(node.label)}</div>
       ${branchIcons}
       ${bPinSvg}
@@ -853,6 +920,155 @@ function updateStats(tree) {
   document.getElementById('cleanup-btn').style.opacity = tree.some(n=>fullyDone(n)) ? '1' : '0.3';
 }
 
+// ── Drag & drop reordering (tree view) ──
+let _dragLine = null;       // lineNo being dragged
+let _dropTarget = null;     // { lineNo, position } where it'll drop
+let _dropEl = null;         // the drop-indicator element
+
+function dragStart(e, lineNo) {
+  _dragLine = lineNo;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(lineNo));
+  // mark the node as dragging
+  const node = e.target.closest('.tree-node');
+  if (node) setTimeout(() => node.classList.add('dragging'), 0);
+}
+
+function dragEnd(e) {
+  document.querySelectorAll('.tree-node.dragging').forEach(n => n.classList.remove('dragging'));
+  _clearDropIndicator();
+  _dragLine = null;
+  _dropTarget = null;
+}
+
+function _clearDropIndicator() {
+  if (_dropEl) { _dropEl.remove(); _dropEl = null; }
+}
+
+// Determine drop target from a tree-row under the cursor
+function _computeDrop(row, e) {
+  const lineNo = parseInt(row.dataset.lineno);
+  const rect = row.getBoundingClientRect();
+  const pct = (e.clientY - rect.top) / rect.height;
+  // Determine if this row is a branch (has visible children rendered after it)
+  const node = row.closest('.tree-node');
+  const childrenEl = node && node.querySelector(':scope > .tree-children');
+  const isBranch = !!(childrenEl && childrenEl.querySelector('.tree-row'));
+  let position;
+  if (isBranch) {
+    // Branch: dropping on the row inserts as its FIRST child (visually right below).
+    position = 'child-first';
+  } else {
+    // Leaf: upper half → child, lower half → after (sibling)
+    position = pct < 0.5 ? 'child' : 'after';
+  }
+  return { lineNo, position };
+}
+
+// Attach a single delegated dragover/drop on the preview container
+function initDragDrop() {
+  const pv = preview;
+  pv.addEventListener('dragover', (e) => {
+    if (_dragLine === null) return;
+    const row = e.target.closest('.tree-row');
+    if (!row) { _clearDropIndicator(); return; }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const drop = _computeDrop(row, e);
+    // don't allow dropping onto itself
+    if (drop.lineNo === _dragLine) { _clearDropIndicator(); _dropTarget=null; return; }
+    _dropTarget = drop;
+    _clearDropIndicator();
+    const ind = document.createElement('div');
+    ind.className = 'drop-indicator';
+    ind.innerHTML = '<span class="ind-plus" style="visibility:hidden">+</span><span class="ind-line"></span>';
+    if (drop.position === 'child-first') {
+      // placed INSIDE .tree-children which is already indented → use IND_SAME
+      ind.style.paddingLeft = IND_SAME + 'px';
+      const node = row.closest('.tree-node');
+      const childrenEl = node.querySelector(':scope > .tree-children');
+      if (childrenEl) childrenEl.insertBefore(ind, childrenEl.firstChild);
+      else row.insertAdjacentElement('afterend', ind);
+    } else {
+      // placed right under the row (same level container) → child indents, after same
+      ind.style.paddingLeft = (drop.position === 'child' ? IND_CHILD : IND_SAME) + 'px';
+      row.insertAdjacentElement('afterend', ind);
+    }
+    _dropEl = ind;
+  });
+  pv.addEventListener('drop', (e) => {
+    if (_dragLine === null || !_dropTarget) return;
+    e.preventDefault();
+    performMove(_dragLine, _dropTarget.lineNo, _dropTarget.position);
+    _clearDropIndicator();
+    _dragLine = null; _dropTarget = null;
+  });
+  pv.addEventListener('dragleave', (e) => {
+    if (!e.relatedTarget || !preview.contains(e.relatedTarget)) _clearDropIndicator();
+  });
+}
+
+// Move a node's subtree (block of lines) to a new location
+function performMove(srcLine, dstLine, position) {
+  const lines = editor.value.split('\n');
+  pushUndo();
+  const srcIndent = (lines[srcLine].match(/^(\s*)/)[1] || '').length;
+  // extract source block (node + descendants)
+  let srcEnd = srcLine;
+  for (let i = srcLine + 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    if (lines[i].trim() === '---') break;
+    if ((lines[i].match(/^(\s*)/)[1]||'').length <= srcIndent) break;
+    srcEnd = i;
+  }
+  // prevent dropping into own subtree
+  if (dstLine >= srcLine && dstLine <= srcEnd) return;
+
+  const block = lines.slice(srcLine, srcEnd + 1);
+  const dstIndent = (lines[dstLine].match(/^(\s*)/)[1] || '').length;
+
+  // target indent for the moved block's root
+  let targetIndent;
+  if (position === 'child' || position === 'child-first') targetIndent = dstIndent + 2;
+  else targetIndent = dstIndent; // after = sibling of dst
+
+  // re-indent block (shift by targetIndent - srcIndent)
+  const shift = targetIndent - srcIndent;
+  const reindented = block.map(l => {
+    if (!l.trim()) return l;
+    const cur = (l.match(/^(\s*)/)[1]||'').length;
+    const newIndent = Math.max(0, cur + shift);
+    return ' '.repeat(newIndent) + l.replace(/^\s*/, '');
+  });
+
+  // remove source block first
+  lines.splice(srcLine, srcEnd - srcLine + 1);
+
+  // recompute destination index after removal
+  let dst = dstLine;
+  if (srcLine < dstLine) dst -= (srcEnd - srcLine + 1);
+
+  // compute insertion point
+  let insertAt;
+  if (position === 'child' || position === 'child-first') {
+    // insert as first child: right after dst
+    insertAt = dst + 1;
+  } else { // after: after dst's subtree
+    let dstEnd = dst;
+    for (let i = dst + 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      if (lines[i].trim() === '---') break;
+      if ((lines[i].match(/^(\s*)/)[1]||'').length <= dstIndent) break;
+      dstEnd = i;
+    }
+    insertAt = dstEnd + 1;
+  }
+
+  lines.splice(insertAt, 0, ...reindented);
+  editor.value = lines.join('\n');
+  save(); render(); updateHL();
+}
+
 // ── Inline tree edit ──
 
 // inlineAdd: insert a new line
@@ -867,6 +1083,7 @@ const IND_SAME  = 4;
 const IND_CHILD = 4 + 22;
 
 function inlineAdd(lineNo, position) {
+  pushUndo();
   const lines = editor.value.split('\n');
   const refLine = lines[lineNo];
   const indent  = (refLine.match(/^(\s*)/)[1] || '');
@@ -942,6 +1159,7 @@ function inlineEdit(lineNo, isNew) {
     if (committed) return;
     committed = true;
     const val = input.value.trim();
+    pushUndo();
     const lines2 = editor.value.split('\n');
     if (val === '') {
       lines2.splice(lineNo, 1); // empty → delete the line
@@ -964,11 +1182,38 @@ function inlineEdit(lineNo, isNew) {
   });
 }
 
+// ── Delete a line (and its entire subtree) ──
+function deleteLine(lineNo) {
+  const lines = editor.value.split('\n');
+  const line = lines[lineNo];
+  if (!line) return;
+  const indent = (line.match(/^(\s*)/)[1] || '').length;
+  // find end of subtree (lines with greater indent)
+  let end = lineNo;
+  for (let i = lineNo + 1; i < lines.length; i++) {
+    if (!lines[i].trim()) { continue; }
+    if (lines[i].trim() === '---') break;
+    if ((lines[i].match(/^(\s*)/)[1] || '').length <= indent) break;
+    end = i;
+  }
+  const label = line.replace(/^\s*[-*]\s+/, '').replace(/\s*\[[^\]]*\]/g,'').trim();
+  const childCount = end - lineNo;
+  const msg = childCount > 0
+    ? `「${label}」とその子 ${childCount} 行を削除しますか？`
+    : `「${label}」を削除しますか？`;
+  if (!confirm(msg)) return;
+  pushUndo();
+  lines.splice(lineNo, end - lineNo + 1);
+  editor.value = lines.join('\n');
+  save(); render(); updateHL();
+}
+
 // ── Toggle tag ([important] / [urgent] / [suspended]) ──
 function toggleTag(lineNo, tag) {
   const lines = editor.value.split('\n');
   const line = lines[lineNo];
   if (!line) return;
+  pushUndo();
   const tagStr = `[${tag}]`;
   const tagRe  = new RegExp(`\\s*\\[${tag}\\]`, 'i');
   if (tagRe.test(line)) {
@@ -992,6 +1237,7 @@ function togglePin(lineNo) {
   if (!line) return;
   const m = line.match(/^(\s*)([-*])(\s+.*)/);
   if (!m) return;
+  pushUndo();
   lines[lineNo] = m[1] + (m[2] === '*' ? '-' : '*') + m[3];
   editor.value = lines.join('\n');
   save(); render(); updateHL();
@@ -1002,6 +1248,7 @@ function toggleDone(lineNo) {
   const lines = editor.value.split('\n');
   const line = lines[lineNo];
   if (!line) return;
+  pushUndo();
 
   const wasDone = DONE_RE.test(line);
   lines[lineNo] = wasDone ? line.replace(DONE_RE, '') : line.trimEnd() + ` [done:${nowTs()}]`;
@@ -1083,6 +1330,7 @@ function doCleanup() {
 
   const count = doneTrees.length;
   if (!confirm(`完了済みのツリーが ${count} 件あります。\nテキスト末尾にアーカイブしますか？`)) return;
+  pushUndo();
 
   function lastLine(node) {
     if (!node.children.length) return node.lineNo;
@@ -1356,6 +1604,19 @@ document.getElementById('theme-icon').textContent = isLight ? 'dark_mode' : 'lig
 editor.value = load() ?? DEFAULT;
 render();
 updateHL();
+initDragDrop();
+
+// Global undo/redo shortcuts (preview mode; textarea has its own native undo)
+document.addEventListener('keydown', (e) => {
+  const inEditor = document.activeElement === editor;
+  if (inEditor) return; // let textarea handle native undo while typing
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+    e.preventDefault(); doUndo();
+  } else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+    e.preventDefault(); doRedo();
+  }
+});
 
 // ── PWA: register service worker ──
 if ('serviceWorker' in navigator) {
