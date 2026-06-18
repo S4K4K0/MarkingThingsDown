@@ -63,41 +63,40 @@ body {
 .stats-txt b { color:var(--accent); font-weight:400; }
 
 /* card */
-.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:visible; }
+.card { background:var(--bg); border:1px solid var(--border); border-radius:var(--r); overflow:visible; }
 
-/* section cards (heading groups) */
-.section-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--r); margin-top:10px; overflow:hidden;
+/* Markdown-style heading + divider (collapsible) */
+.md-heading {
+  display:flex; align-items:center; gap:5px;
+  padding:6px 4px 4px; margin-top:16px; cursor:pointer; user-select:none;
 }
-.section-card:first-of-type { margin-top:0; }
-.section-head {
-  display:flex; align-items:center; gap:4px;
-  padding:9px 12px; cursor:pointer; user-select:none;
-  background:var(--surface2); border-bottom:1px solid var(--border);
-  transition:background .12s;
-}
-.section-head:hover { background:rgba(128,128,128,0.06); }
-.section-arrow {
+.md-heading:first-child { margin-top:2px; }
+.md-arrow {
   font-family:'Material Symbols Outlined'; font-size:18px;
-  color:var(--text-mid); flex-shrink:0;
+  color:var(--text-dim); flex-shrink:0; transition:color .12s;
 }
-.section-title {
-  font-size:13px; font-weight:700; color:var(--text);
-  cursor:text;
+.md-heading:hover .md-arrow { color:var(--text-mid); }
+.md-title {
+  font-size:14px; font-weight:700; color:var(--text);
+  cursor:text; flex-shrink:0;
 }
-.section-body { padding:8px 10px; }
-.section-body .empty-hint { color:var(--text-dim); font-size:11px; padding:4px; }
+.md-rule {
+  flex:1; height:1px; background:var(--border); margin-left:8px;
+}
+.md-done .md-title { color:var(--text-mid); }
 .done-count { color:var(--text-dim); font-weight:400; font-size:11px; font-family:'JetBrains Mono',monospace; }
-.section-done .section-head { opacity:0.85; }
+.md-section-body { padding:2px 0 4px; }
 
 /* toolbar */
 .tb {
   display:flex; align-items:center; gap:0;
-  padding:7px 11px; border-bottom:1px solid var(--border);
-  background:var(--surface2); min-height:48px;
+  padding:7px 11px;
+  background:var(--surface2); min-height:44px;
   position:sticky; top:0; z-index:50;
-  border-radius:var(--r) var(--r) 0 0;
+  border-radius:var(--r);
+  border:1px solid var(--border);
+  box-shadow:0 2px 8px rgba(0,0,0,0.12);
+  margin-bottom:12px;
 }
 .tb-seg { display:flex; flex-shrink:0; }       /* segmented group — always left */
 .tb-actions { display:flex; gap:4px; align-items:center; margin-left:10px; flex:1; } /* actions after gap */
@@ -153,6 +152,8 @@ body {
 /* editor wrapper for syntax highlight overlay */
 .editor-wrap {
   display:none; position:relative;
+  border:1px solid var(--border); border-radius:var(--r);
+  overflow:hidden; margin-bottom:10px;
 }
 /* textarea and overlay MUST share identical box metrics for alignment */
 .editor-wrap textarea,
@@ -182,29 +183,27 @@ body {
 /* selection on the transparent textarea shows accent highlight */
 .editor-wrap textarea::selection { background:rgba(200,255,0,0.25); }
 .editor-wrap textarea::-moz-selection { background:rgba(200,255,0,0.25); }
-/* highlight colors */
+/* highlight colors — MUST only change color/opacity, never weight/size (would break wrap alignment) */
+.editor-hl span { font-weight:inherit !important; font-style:inherit !important; }
 .hl-done    { color:var(--text-dim); }
 .hl-susp    { color:var(--text-dim); opacity:0.5; }
 .hl-imp     { color:#ff6644; }
 .hl-urg     { color:#e6a800; }
 .hl-marker  { color:var(--text-mid); }
-.hl-heading { color:var(--accent); font-weight:700; }
+.hl-heading { color:var(--accent); }
 
 /* preview */
-.pv { padding:8px 10px; min-height:320px; }
-/* heading mode: card shell is invisible, section cards stand alone */
-.card.heading-mode {
-  background:transparent; border:none; border-radius:0; overflow:visible;
-}
-.card.heading-mode .tb {
-  background:var(--surface2); border:1px solid var(--border);
-  border-radius:var(--r);
-}
-.card.heading-mode .pv {
-  padding:10px 0 0; background:transparent; min-height:0;
-}
+.pv { padding:0; min-height:320px; }
 
 /* ── FLAT MODE rows ── */
+/* flat card (per-root-node block in flat mode) */
+.flat-card { margin-bottom:2px; }
+.flat-card-title {
+  font-size:12px; font-weight:600; color:var(--text-mid);
+  padding:4px 4px 2px; margin-bottom:2px;
+  border-bottom:1px solid var(--border2);
+}
+
 .flat-row {
   padding:5px 4px; border-radius:4px; margin:2px 0;
   user-select:none; cursor:default;
@@ -269,12 +268,38 @@ body {
 .tree-node { margin:0; }
 .pv > .tree-node { margin-bottom:8px; }
 
+/* top-level node = ONE card wrapping its whole sub-tree */
+.tree-block {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:4px 8px 6px;
+  margin-bottom:2px !important;
+}
+:root.light .tree-block { background:#fff; }
+/* inner rows: transparent (no nested card backgrounds) */
+.tree-row { background:transparent; border:1px solid transparent; border-radius:6px; }
+.tree-row:hover { background:rgba(128,128,128,0.06); border-color:transparent; }
+
+/* collapse arrow on top-level branches */
+.tn-arrow {
+  font-family:'Material Symbols Outlined'; font-size:18px;
+  color:var(--text-dim); cursor:pointer; flex-shrink:0;
+  align-self:center; margin-right:2px;
+  transition:color .12s;
+}
+.tn-arrow:hover { color:var(--text-mid); }
+/* top-level branch label a touch bolder/larger */
+.tree-row-top .tree-branch-label {
+  font-size:13px; font-weight:600; color:var(--text);
+}
+
 .tree-row {
   display:flex; align-items:flex-start;
-  padding:2px 4px 2px 18px; border-radius:4px; margin:0;
+  padding:4px 6px 4px 18px; margin:0;
   user-select:none; cursor:default; position:relative;
 }
-.tree-row:hover { background:rgba(128,128,128,0.06); }
+.tree-row:hover { border-color:var(--border2); }
 /* drag handle (vertical dots) on left */
 .drag-handle {
   position:absolute; left:2px; top:0; bottom:0;
@@ -310,12 +335,12 @@ body {
   margin-left:6px; align-self:center; flex-shrink:0;
 }
 
-/* tree children indented */
+/* tree children indented (no nesting background, flat blocks) */
 .tree-children {
-  margin-left:14px;
-  padding-left:8px;
+  margin-left:16px;
+  padding-left:0;
   padding-top:3px;
-  border-left:1px solid var(--tree-line);
+  border-left:none;
 }
 /* shared indicator look */
 .ind {
@@ -428,8 +453,7 @@ body {
 <body>
 <div class="app">
 
-<div class="card">
-  <div class="tb">
+<div class="tb" id="toolbar">
     <!-- segmented: edit / flat / tree — always visible left -->
     <div class="tb-seg">
       <button class="seg-btn" id="btn-edit" onclick="enterEdit()" title="編集"><span class="material-symbols-outlined">edit</span></button>
@@ -455,9 +479,8 @@ body {
     </div>
     <div class="stats-txt" id="stats2" style="margin-left:10px;"></div>
   </div>
-  <div class="editor-wrap" id="editor-wrap"><div class="editor-hl" id="editor-hl" aria-hidden="true"></div><textarea id="editor" spellcheck="false"></textarea></div>
-  <div class="pv" id="preview"></div>
-</div>
+<div class="editor-wrap" id="editor-wrap"><div class="editor-hl" id="editor-hl" aria-hidden="true"></div><textarea id="editor" spellcheck="false"></textarea></div>
+<div class="pv" id="preview"></div>
 <div class="legend" id="legend" style="display:none">
   <div class="legend-row">
     <span class="legend-item"><code>-</code> シーケンス：同階層の最初の未完了のみ表示</span>
@@ -751,24 +774,11 @@ function tagIcons(lineNo, imp, urg, susp) {
     `</span>`;
 }
 
-function renderFlat(tree) {
-  // active = not done themselves (surfaced nodes: all children done but self undone)
-  const active = tree.filter(n => !n.done);
-  const done   = tree.filter(n =>  n.done);  // only explicitly done top-level nodes
-
+function renderFlatRows(actions) {
   let html = '';
-
-  // collect all next actions — top-level nodes always all shown, no seq filter at root
-  const actions = [];
-  active.forEach(n => collectNextActionsOne(n, [], actions, null));
-
-  // Sort by priority: both=0, important=1, urgent=2, none=3
-  actions.sort((a, b) => prioritySortKey(a.imp, a.urg, a.susp) - prioritySortKey(b.imp, b.urg, b.susp));
-
-  actions.forEach(({node, path, markerLineNo, marker, imp, urg, susp}) => {
+  actions.forEach(({node, path, imp, urg, susp}) => {
     const pathStr = path.length
-      ? `<div class="flat-path">${path.map(esc).join('<span class="sep">›</span>')}</div>`
-      : '';
+      ? `<div class="flat-path">${path.map(esc).join('<span class="sep">›</span>')}</div>` : '';
     const icons = tagIcons(node.lineNo, imp, urg, susp);
     html += `<div class="flat-row${susp?' susp':''}" data-lineno="${node.lineNo}">
       ${pathStr}
@@ -779,8 +789,27 @@ function renderFlat(tree) {
       </div>
     </div>`;
   });
+  return html;
+}
 
-  html += renderDoneSection(tree);  // pass full tree to catch done leaves anywhere
+function renderFlat(tree) {
+  const active = tree.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+  let html = '';
+
+  // One card per top-level node
+  active.forEach(root => {
+    const actions = [];
+    collectNextActionsOne(root, [], actions, null);
+    if (!actions.length) return;
+    actions.sort((a, b) => prioritySortKey(a.imp, a.urg, a.susp) - prioritySortKey(b.imp, b.urg, b.susp));
+    // Card header: root node label (if root has children, show as title; if leaf, no header)
+    const hasChildren = root.children.length > 0;
+    const header = hasChildren
+      ? `<div class="flat-card-title">${esc(root.label)}</div>` : '';
+    html += `<div class="flat-card tree-block">${header}${renderFlatRows(actions)}</div>`;
+  });
+
+  html += renderDoneSection(tree);
   return html || '<p style="color:var(--text-dim);font-size:12px;padding:8px;">タスクがありません</p>';
 }
 
@@ -816,7 +845,7 @@ function renderTreeNodesTop(nodes) {
   const vis = nodes.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
   vis.forEach((n, i) => {
     if (i === 0) html += simpleGap(n.lineNo, 'before', IND_SAME); // gap above first
-    html += renderTreeNode(n, false);
+    html += renderTreeNode(n, false, true); // isTopLevel
   });
   return html;
 }
@@ -843,23 +872,43 @@ function renderTreeNodes(nodes, forceWaiting=false, parentLineNo=-1) {
   return html;
 }
 
-function renderTreeNode(node, isWaiting) {
+function renderTreeNode(node, isWaiting, isTopLevel=false) {
   const hasKids = node.children.length > 0;
   const allKidDone = hasKids && node.children.every(c => fullyDone(c));
   const nodeSurfaced = hasKids && allKidDone && !node.done;
   const waitCls = isWaiting ? ' seq-waiting' : '';
   const suspCls  = node.suspended ? ' susp' : '';
+  const dragHandle = `<div class="drag-handle" draggable="true"
+       onmousedown="event.stopPropagation()"
+       ondragstart="dragStart(event,${node.lineNo})"
+       ondragend="dragEnd(event)" title="ドラッグで移動">drag_indicator</div>`;
+
+  // Top-level collapse state
+  const collapseKey = 'tn:' + node.lineNo;
+  const isCollapsed = isTopLevel && hasKids && collapsedHeadings.has(collapseKey);
+  const collapseArrow = (isTopLevel && hasKids)
+    ? `<span class="tn-arrow material-symbols-outlined" onclick="event.stopPropagation();toggleHeading('${collapseKey}')">${isCollapsed?'chevron_right':'expand_more'}</span>`
+    : '';
 
   if (!hasKids || nodeSurfaced) {
     const isPar = node.marker === '*';
     const pinSvg = `<span class="pin${isPar?' is-par':''}" title="${isPar?'パラレル → シーケンスに変更':'シーケンス → パラレルに変更'}" onclick="togglePin(${node.lineNo})">keep</span>`;
     const leafIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
+    const leafGap = splitGap(node.lineNo);
+    if (isTopLevel) {
+      return `<div class="tree-node tree-block" data-node-line="${node.lineNo}">
+        <div class="tree-row${waitCls}${suspCls} tree-row-top" data-lineno="${node.lineNo}">
+          ${dragHandle}
+          <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
+          <div class="task-name" ondblclick="inlineEdit(${node.lineNo}, false)">${renderLabel(node.label)}</div>
+          ${leafIcons}
+          ${pinSvg}
+        </div>
+      </div>${leafGap}`;
+    }
     return `<div class="tree-node" data-node-line="${node.lineNo}">
       <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
-        <div class="drag-handle" draggable="true"
-             onmousedown="event.stopPropagation()"
-             ondragstart="dragStart(event,${node.lineNo})"
-             ondragend="dragEnd(event)" title="ドラッグで移動">drag_indicator</div>
+        ${dragHandle}
         <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
         <div class="task-name" ondblclick="inlineEdit(${node.lineNo}, false)">${renderLabel(node.label)}</div>
         ${leafIcons}
@@ -874,20 +923,34 @@ function renderTreeNode(node, isWaiting) {
   const bPinSvg = `<span class="pin${bIsPar?' is-par':''}" title="${bIsPar?'パラレル → シーケンスに変更':'シーケンス → パラレルに変更'}" onclick="togglePin(${node.lineNo})">keep</span>`;
   const undoneKids = node.children.filter(c => !c.done && !(fullyDone(c) && !isSurfaced(c)));
   const branchIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
-  return `<div class="tree-node" data-node-line="${node.lineNo}">
+  const childrenHtml = isCollapsed ? '' :
+    `<div class="tree-children">
+      ${renderTreeNodes(undoneKids, isWaiting, node.lineNo)}
+    </div>`;
+  const afterGap = isCollapsed ? '' : simpleGap(node.lineNo, 'after', IND_SAME);
+  if (isTopLevel) {
+    // gap goes OUTSIDE the block so the indicator sits between cards
+    return `<div class="tree-node tree-block${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
+      <div class="tree-row${waitCls}${suspCls} tree-row-top" data-lineno="${node.lineNo}">
+        ${dragHandle}
+        ${collapseArrow}
+        <div class="tree-branch-label" ondblclick="inlineEdit(${node.lineNo}, false)">${esc(node.label)}</div>
+        ${branchIcons}
+        ${bPinSvg}
+      </div>
+      ${childrenHtml}
+    </div>${afterGap}`;
+  }
+  return `<div class="tree-node${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
     <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
-      <div class="drag-handle" draggable="true"
-           onmousedown="event.stopPropagation()"
-           ondragstart="dragStart(event,${node.lineNo})"
-           ondragend="dragEnd(event)" title="ドラッグで移動">drag_indicator</div>
+      ${dragHandle}
+      ${collapseArrow}
       <div class="tree-branch-label" ondblclick="inlineEdit(${node.lineNo}, false)">${esc(node.label)}</div>
       ${branchIcons}
       ${bPinSvg}
     </div>
-    <div class="tree-children">
-      ${renderTreeNodes(undoneKids, isWaiting, node.lineNo)}
-    </div>
-    ${simpleGap(node.lineNo, 'after', IND_SAME)}
+    ${childrenHtml}
+    ${afterGap}
   </div>`;
 }
 
@@ -973,23 +1036,20 @@ function renderDoneItems(leaves) {
   });
   return html;
 }
-// Done section wrapped as a collapsible section card (heading mode)
-function renderDoneCard(tree) {
+// Done section as a Markdown-style collapsible heading
+function renderDoneMd(tree) {
   const leaves = [];
   tree.forEach(n => collectDoneLeaves(n, [], leaves));
   if (!leaves.length) return '';
   const key = '__done__';
   const collapsed = collapsedHeadings.has(key);
   const arrow = collapsed ? 'chevron_right' : 'expand_more';
-  let html = `<div class="section-card section-done">
-    <div class="section-head" onclick="toggleHeading('${key}')">
-      <span class="section-arrow material-symbols-outlined">${arrow}</span>
-      <span class="section-title">完了 <span class="done-count">${leaves.length}</span></span>
-    </div>`;
-  if (!collapsed) {
-    html += `<div class="section-body">${renderDoneItems(leaves)}</div>`;
-  }
-  html += `</div>`;
+  let html = `<div class="md-heading md-done${collapsed?' collapsed':''}" onclick="toggleHeading('${key}')">
+    <span class="md-arrow material-symbols-outlined">${arrow}</span>
+    <span class="md-title">完了 <span class="done-count">${leaves.length}</span></span>
+    <span class="md-rule"></span>
+  </div>`;
+  if (!collapsed) html += `<div class="md-section-body">${renderDoneItems(leaves)}</div>`;
   return html;
 }
 
@@ -1001,13 +1061,10 @@ function render() {
   // Does the doc use headings at all?
   const hasHeadings = sections.some(sec => sec.heading);
 
-  const card = document.querySelector('.card');
   if (!hasHeadings) {
-    // No headings: single preview as before
-    if (card) card.classList.remove('heading-mode');
+    // No headings: single preview
     preview.innerHTML = viewMode === 'flat' ? renderFlat(tree) : renderTree(tree);
   } else {
-    if (card) card.classList.add('heading-mode');
     // Group top-level nodes by section (by lineNo range)
     let html = '';
     sections.forEach((sec, si) => {
@@ -1022,47 +1079,40 @@ function render() {
       // Skip empty leading section (no heading, no nodes)
       if (!sec.heading && !secNodes.length) return;
 
-      html += `<div class="section-card">`;
+      // Markdown-like heading: text + divider line, collapsible
       if (sec.heading) {
         const arrow = collapsed ? 'chevron_right' : 'expand_more';
-        html += `<div class="section-head" onclick="toggleHeading('${key}')">
-          <span class="section-arrow material-symbols-outlined">${arrow}</span>
-          <span class="section-title" ondblclick="event.stopPropagation();editHeading(${sec.heading.lineNo})">${esc(sec.heading.text)}</span>
+        html += `<div class="md-heading${collapsed?' collapsed':''}" onclick="toggleHeading('${key}')">
+          <span class="md-arrow material-symbols-outlined">${arrow}</span>
+          <span class="md-title" ondblclick="event.stopPropagation();editHeading(${sec.heading.lineNo})">${esc(sec.heading.text)}</span>
+          <span class="md-rule"></span>
         </div>`;
       }
       if (!collapsed) {
         const body = viewMode === 'flat'
           ? renderFlatNodes(secNodes, tree)
           : renderTreeNodesTop(secNodes);
-        html += `<div class="section-body">${body || '<p class="empty-hint">タスクなし</p>'}</div>`;
+        html += `<div class="md-section-body">${body || ''}</div>`;
       }
-      html += `</div>`;
     });
-    // Done section as its own collapsible card
-    html += renderDoneCard(tree);
+    // Done section: divider-style heading (collapsible)
+    html += renderDoneMd(tree);
     preview.innerHTML = html || '<p style="color:var(--text-dim);font-size:12px;padding:8px;">タスクがありません</p>';
   }
   updateStats(tree);
 }
 
 // Render flat-mode rows for a given set of top-level nodes (no done section)
-function renderFlatNodes(nodes, fullTree) {
-  const actions = [];
-  nodes.filter(n => !n.done).forEach(n => collectNextActionsOne(n, [], actions, null));
-  actions.sort((a, b) => prioritySortKey(a.imp, a.urg, a.susp) - prioritySortKey(b.imp, b.urg, b.susp));
+function renderFlatNodes(nodes) {
   let html = '';
-  actions.forEach(({node, path, imp, urg, susp}) => {
-    const pathStr = path.length
-      ? `<div class="flat-path">${path.map(esc).join('<span class="sep">›</span>')}</div>` : '';
-    const icons = tagIcons(node.lineNo, imp, urg, susp);
-    html += `<div class="flat-row${susp?' susp':''}" data-lineno="${node.lineNo}">
-      ${pathStr}
-      <div class="flat-task">
-        <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
-        <div class="task-name">${renderLabel(node.label)}</div>
-        ${icons}
-      </div>
-    </div>`;
+  nodes.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n))).forEach(root => {
+    const actions = [];
+    collectNextActionsOne(root, [], actions, null);
+    if (!actions.length) return;
+    actions.sort((a, b) => prioritySortKey(a.imp, a.urg, a.susp) - prioritySortKey(b.imp, b.urg, b.susp));
+    const hasChildren = root.children.length > 0;
+    const header = hasChildren ? `<div class="flat-card-title">${esc(root.label)}</div>` : '';
+    html += `<div class="flat-card tree-block">${header}${renderFlatRows(actions)}</div>`;
   });
   return html;
 }
