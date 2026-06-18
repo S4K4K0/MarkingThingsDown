@@ -690,7 +690,10 @@ function visibleForFlat(nodes) {
 // For par-transparent nodes, it's the par node's lineNo.
 // For seq nodes, it's the node's own lineNo.
 function isSurfaced(n) {
-  return !n.done && n.children.length > 0 && n.children.every(c => fullyDone(c));
+  // Surfaces only when every DIRECT child is explicitly done (c.done).
+  // This makes completion bubble up one level at a time: a leaf completes →
+  // its parent surfaces (gets a checkbox); checking the parent → grandparent surfaces.
+  return !n.done && n.children.length > 0 && n.children.every(c => c.done);
 }
 
 // Inherit important/urgent from ancestors
@@ -713,7 +716,6 @@ function prioritySortKey(imp, urg, susp) {
 
 function collectNextActionsOne(n, path, out, markerLineNo, inhImp=false, inhUrg=false, inhSusp=false) {
   if (n.done) return;
-  if (fullyDone(n) && !isSurfaced(n)) return;
   const imp  = n.important || inhImp;
   const urg  = n.urgent    || inhUrg;
   const susp = n.suspended || inhSusp;
@@ -793,7 +795,7 @@ function renderFlatRows(actions) {
 }
 
 function renderFlat(tree) {
-  const active = tree.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+  const active = tree.filter(n => !n.done);
   let html = '';
 
   // One card per top-level node
@@ -831,7 +833,7 @@ function splitGap(lineNo) {
 }
 
 function renderTree(tree) {
-  const active = tree.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+  const active = tree.filter(n => !n.done);
   // Top-level trees are independent — no seq filter. Render with gaps.
   let html = renderTreeNodesTop(active);
   html += renderDoneSection(tree);
@@ -842,7 +844,7 @@ function renderTree(tree) {
 // after each node the gap is provided by renderTreeNode itself (split for leaf).
 function renderTreeNodesTop(nodes) {
   let html = '';
-  const vis = nodes.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+  const vis = nodes.filter(n => !n.done);
   vis.forEach((n, i) => {
     if (i === 0) html += simpleGap(n.lineNo, 'before', IND_SAME); // gap above first
     html += renderTreeNode(n, false, true); // isTopLevel
@@ -874,7 +876,8 @@ function renderTreeNodes(nodes, forceWaiting=false, parentLineNo=-1) {
 
 function renderTreeNode(node, isWaiting, isTopLevel=false) {
   const hasKids = node.children.length > 0;
-  const allKidDone = hasKids && node.children.every(c => fullyDone(c));
+  // Surfaces one level at a time: only when every DIRECT child is explicitly done.
+  const allKidDone = hasKids && node.children.every(c => c.done);
   const nodeSurfaced = hasKids && allKidDone && !node.done;
   const waitCls = isWaiting ? ' seq-waiting' : '';
   const suspCls  = node.suspended ? ' susp' : '';
@@ -1105,7 +1108,7 @@ function render() {
 // Render flat-mode rows for a given set of top-level nodes (no done section)
 function renderFlatNodes(nodes) {
   let html = '';
-  nodes.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n))).forEach(root => {
+  nodes.filter(n => !n.done).forEach(root => {
     const actions = [];
     collectNextActionsOne(root, [], actions, null);
     if (!actions.length) return;
@@ -1155,7 +1158,7 @@ function updateStats(tree) {
   const pct = total ? Math.round(done/total*100) : 0;
   const t = total ? `<b>${done}</b> / ${total} &nbsp;·&nbsp; ${pct}%` : '—';
   document.getElementById('stats2').innerHTML = t;
-  document.getElementById('cleanup-btn').style.opacity = tree.some(n=>fullyDone(n)) ? '1' : '0.3';
+  document.getElementById('cleanup-btn').style.opacity = tree.some(n=>n.done) ? '1' : '0.3';
 }
 
 // ── Drag & drop reordering (tree view) ──
@@ -1552,18 +1555,16 @@ function doCleanup() {
   const SEP = '---';
   const lines = editor.value.split('\n');
 
-  // Split text at separator: only parse the active section
+  // Split at separator: only operate on the active section
   const sepIdx = lines.findIndex(l => l.trim() === SEP);
-  const activeLines = sepIdx >= 0 ? lines.slice(0, sepIdx) : lines;
+  const activeLines = sepIdx >= 0 ? lines.slice(0, sepIdx) : lines.slice();
   const existingArchive = sepIdx >= 0 ? lines.slice(sepIdx + 1) : [];
 
-  // Build tree from active section only
-  const activeText = activeLines.join('\n');
-  const tree = buildTree(activeText);
+  // Build tree from active section only (line numbers are relative to activeLines)
+  const tree = buildTree(activeLines.join('\n'));
 
-  // doneTrees = fully done top-level nodes (all leaves have [done])
-  // Only move trees where ALL leaves have [done] — partial trees stay
-  const doneTrees = tree.filter(n => fullyDone(n) && !isSurfaced(n));
+  // Only archive top-level nodes whose OWN checkbox is checked (n.done).
+  const doneTrees = tree.filter(n => n.done);
   if (!doneTrees.length) return;
 
   const count = doneTrees.length;
@@ -1574,20 +1575,31 @@ function doCleanup() {
     if (!node.children.length) return node.lineNo;
     return Math.max(node.lineNo, ...node.children.map(lastLine));
   }
-  function blockOf(n) { return activeLines.slice(n.lineNo, lastLine(n) + 1); }
 
-  const activeTrees = tree.filter(n => !fullyDone(n));
-  const activeBlocks = activeTrees.map(blockOf);
-  const doneBlocks = doneTrees.map(n => ({ block: blockOf(n), ts: latestTs(n) }));
+  // Mark line ranges to remove (the done trees). Keep everything else
+  // (headings, blank lines, active trees) exactly in place.
+  const removeRanges = doneTrees.map(n => [n.lineNo, lastLine(n)]);
+  const toRemove = new Set();
+  removeRanges.forEach(([a, b]) => { for (let i = a; i <= b; i++) toRemove.add(i); });
+
+  // Collect archived blocks (with timestamp for ordering)
+  const doneBlocks = doneTrees.map(n => ({
+    block: activeLines.slice(n.lineNo, lastLine(n) + 1),
+    ts: latestTs(n)
+  }));
   doneBlocks.sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
 
+  // Rebuild active section: keep all non-removed lines (headings survive even if now empty)
+  const keptActive = activeLines.filter((_, i) => !toRemove.has(i));
+
   const out = [];
-  activeBlocks.forEach((b, i) => { if (i) out.push(''); out.push(...b); });
+  out.push(...keptActive);
   out.push('', SEP);
   if (existingArchive.length) out.push(...existingArchive);
   doneBlocks.forEach(({ block }) => { out.push(''); out.push(...block); });
 
-  editor.value = out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  // Collapse 3+ blank lines to 2, but don't trim leading (headings may lead)
+  editor.value = out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/,'');
   save(); render(); updateHL();
 }
 
