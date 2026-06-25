@@ -68,9 +68,9 @@ body {
 /* Markdown-style heading + divider (collapsible) */
 .md-heading {
   display:flex; align-items:center; gap:5px;
-  padding:6px 4px 4px; margin-top:16px; cursor:pointer; user-select:none;
+  padding:4px 4px; margin:8px 0 8px; cursor:pointer; user-select:none;
 }
-.md-heading:first-child { margin-top:2px; }
+.md-heading:first-child { margin-top:0; }
 .md-arrow {
   font-family:'Material Symbols Outlined'; font-size:18px;
   color:var(--text-dim); flex-shrink:0; transition:color .12s;
@@ -85,7 +85,17 @@ body {
 }
 .md-done .md-title { color:var(--text-mid); }
 .done-count { color:var(--text-dim); font-weight:400; font-size:11px; font-family:'JetBrains Mono',monospace; }
-.md-section-body { padding:2px 0 4px; }
+.md-section-body { padding:0; }
+/* trailing add-gap after a top-level card: zero layout height, overlays the
+   8px margin gap via absolute positioning so it never adds/subtracts spacing. */
+.pv > .tree-add, .pv > .tree-add-split,
+.md-section-body > .tree-add, .md-section-body > .tree-add-split {
+  height:0; min-height:0; margin:0; position:relative; z-index:5;
+}
+.pv > .tree-add > .ind, .pv > .tree-add-split > .ind,
+.md-section-body > .tree-add > .ind, .md-section-body > .tree-add-split > .ind {
+  position:absolute; top:4px; left:0; right:0;
+}
 
 /* toolbar */
 .tb {
@@ -197,15 +207,14 @@ body {
 
 /* ── FLAT MODE rows ── */
 /* flat card (per-root-node block in flat mode) */
-.flat-card { margin-bottom:2px; }
+.flat-card { margin-bottom:8px; }
 .flat-card-title {
-  font-size:12px; font-weight:600; color:var(--text-mid);
-  padding:4px 4px 2px; margin-bottom:2px;
-  border-bottom:1px solid var(--border2);
+  font-size:13px; font-weight:600; color:var(--text);
+  padding:2px 4px 4px;
 }
 
 .flat-row {
-  padding:5px 4px; border-radius:4px; margin:2px 0;
+  padding:3px 4px; border-radius:4px; margin:0;
   user-select:none; cursor:default;
 }
 .flat-row:hover { background:rgba(128,128,128,0.06); }
@@ -266,15 +275,14 @@ body {
 /* ── TREE MODE rows ── */
 /* top-level tree-node gets extra spacing between trees */
 .tree-node { margin:0; }
-.pv > .tree-node { margin-bottom:8px; }
 
 /* top-level node = ONE card wrapping its whole sub-tree */
 .tree-block {
   background:var(--surface2);
   border:1px solid var(--border);
   border-radius:8px;
-  padding:4px 8px 6px;
-  margin-bottom:2px !important;
+  padding:6px 10px;
+  margin-bottom:8px;
 }
 :root.light .tree-block { background:#fff; }
 /* inner rows: transparent (no nested card backgrounds) */
@@ -1211,27 +1219,60 @@ function initDragDrop() {
   const pv = preview;
   pv.addEventListener('dragover', (e) => {
     if (_dragLine === null) return;
-    const row = e.target.closest('.tree-row');
-    if (!row) { _clearDropIndicator(); return; }
+    let row = e.target.closest('.tree-row');
+    let topBlock = e.target.closest('.tree-block');
+
+    // If not over a row but over/near a top-level block (e.g. its padding or the
+    // gap between cards), treat as "drop after that block" (sibling at root level).
+    if (!row && !topBlock) {
+      // hovering the empty gap between cards — find the nearest block above the cursor
+      const blocks = [...pv.querySelectorAll('.pv > .tree-block, .tree-block')];
+      let target = null;
+      for (const b of blocks) {
+        const r = b.getBoundingClientRect();
+        if (e.clientY >= r.top) target = b; else break;
+      }
+      topBlock = target;
+    }
+
+    if (!row && topBlock) {
+      // dropping after a whole top-level block
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const lineNo = parseInt(topBlock.dataset.nodeLine);
+      if (lineNo === _dragLine) { _clearDropIndicator(); _dropTarget=null; return; }
+      _dropTarget = { lineNo, position: 'after' };
+      _clearDropIndicator();
+      const ind = document.createElement('div');
+      ind.className = 'drop-indicator';
+      ind.innerHTML = '<span class="ind-plus" style="visibility:hidden">+</span><span class="ind-line"></span>';
+      ind.style.paddingLeft = IND_SAME + 'px';
+      topBlock.insertAdjacentElement('afterend', ind);
+      _dropEl = ind;
+      return;
+    }
+
+    if (!row) { _clearDropIndicator(); _dropTarget=null; return; }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const drop = _computeDrop(row, e);
-    // don't allow dropping onto itself
     if (drop.lineNo === _dragLine) { _clearDropIndicator(); _dropTarget=null; return; }
     _dropTarget = drop;
     _clearDropIndicator();
     const ind = document.createElement('div');
     ind.className = 'drop-indicator';
     ind.innerHTML = '<span class="ind-plus" style="visibility:hidden">+</span><span class="ind-line"></span>';
+    const node = row.closest('.tree-node');
+    const isTopBlock = node && node.classList.contains('tree-block');
     if (drop.position === 'child-first') {
-      // placed INSIDE .tree-children which is already indented → use IND_SAME
       ind.style.paddingLeft = IND_SAME + 'px';
-      const node = row.closest('.tree-node');
       const childrenEl = node.querySelector(':scope > .tree-children');
       if (childrenEl) childrenEl.insertBefore(ind, childrenEl.firstChild);
       else row.insertAdjacentElement('afterend', ind);
+    } else if (drop.position === 'after' && isTopBlock) {
+      ind.style.paddingLeft = IND_SAME + 'px';
+      node.insertAdjacentElement('afterend', ind);
     } else {
-      // placed right under the row (same level container) → child indents, after same
       ind.style.paddingLeft = (drop.position === 'child' ? IND_CHILD : IND_SAME) + 'px';
       row.insertAdjacentElement('afterend', ind);
     }
