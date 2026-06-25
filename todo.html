@@ -438,6 +438,11 @@ body {
 .tag-icon.ti-del { color:var(--text-dim); }
 .tag-icon.ti-del:hover { color:#f55 !important; opacity:0.9 !important; }
 .flat-row.susp, .tree-row.susp { opacity:0.5; }
+/* suspended rows are dimmed, but on hover bring the action icons back to normal */
+.flat-row.susp:hover, .tree-row.susp:hover { opacity:1; }
+.flat-row.susp:hover .task-name, .tree-row.susp:hover .task-name,
+.flat-row.susp:hover .tree-branch-label, .tree-row.susp:hover .tree-branch-label,
+.flat-row.susp:hover .chk, .tree-row.susp:hover .chk { opacity:0.5; }
 
 /* legend */
 .legend {
@@ -802,20 +807,32 @@ function renderFlatRows(actions) {
   return html;
 }
 
+// Best (lowest) priority key among a card's active actions decides the card's rank.
+function cardPriorityKey(actions) {
+  let best = 99;
+  actions.forEach(a => { best = Math.min(best, prioritySortKey(a.imp, a.urg, a.susp)); });
+  return best;
+}
+
 function renderFlat(tree) {
   const active = tree.filter(n => !n.done);
-  let html = '';
 
-  // One card per top-level node
+  // Build one card per top-level node, then sort cards by their active items' priority
+  const cards = [];
   active.forEach(root => {
     const actions = [];
     collectNextActionsOne(root, [], actions, null);
     if (!actions.length) return;
     actions.sort((a, b) => prioritySortKey(a.imp, a.urg, a.susp) - prioritySortKey(b.imp, b.urg, b.susp));
-    // Card header: root node label (if root has children, show as title; if leaf, no header)
+    cards.push({ root, actions, key: cardPriorityKey(actions) });
+  });
+  // Stable sort: cards keep original order within the same priority key
+  cards.sort((a, b) => a.key - b.key);
+
+  let html = '';
+  cards.forEach(({ root, actions }) => {
     const hasChildren = root.children.length > 0;
-    const header = hasChildren
-      ? `<div class="flat-card-title">${esc(root.label)}</div>` : '';
+    const header = hasChildren ? `<div class="flat-card-title">${esc(root.label)}</div>` : '';
     html += `<div class="flat-card tree-block">${header}${renderFlatRows(actions)}</div>`;
   });
 
@@ -1115,12 +1132,17 @@ function render() {
 
 // Render flat-mode rows for a given set of top-level nodes (no done section)
 function renderFlatNodes(nodes) {
-  let html = '';
+  const cards = [];
   nodes.filter(n => !n.done).forEach(root => {
     const actions = [];
     collectNextActionsOne(root, [], actions, null);
     if (!actions.length) return;
     actions.sort((a, b) => prioritySortKey(a.imp, a.urg, a.susp) - prioritySortKey(b.imp, b.urg, b.susp));
+    cards.push({ root, actions, key: cardPriorityKey(actions) });
+  });
+  cards.sort((a, b) => a.key - b.key);
+  let html = '';
+  cards.forEach(({ root, actions }) => {
     const hasChildren = root.children.length > 0;
     const header = hasChildren ? `<div class="flat-card-title">${esc(root.label)}</div>` : '';
     html += `<div class="flat-card tree-block">${header}${renderFlatRows(actions)}</div>`;
