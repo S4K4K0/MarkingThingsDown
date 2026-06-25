@@ -469,9 +469,9 @@ body {
 <div class="tb" id="toolbar">
     <!-- segmented: edit / flat / tree — always visible left -->
     <div class="tb-seg">
-      <button class="seg-btn" id="btn-edit" onclick="enterEdit()" title="編集"><span class="material-symbols-outlined">edit</span></button>
-      <button class="seg-btn" id="btn-tree" onclick="setViewMode('tree')" title="ツリー表示"><span class="material-symbols-outlined">checklist</span></button>
-      <button class="seg-btn active" id="btn-flat" onclick="setViewMode('flat')" title="フラット表示"><span class="material-symbols-outlined">priority</span></button>
+      <button class="seg-btn" id="btn-edit" onclick="enterEdit()" title="編集 (E)"><span class="material-symbols-outlined">edit</span></button>
+      <button class="seg-btn" id="btn-tree" onclick="setViewMode('tree')" title="ツリー表示 (T)"><span class="material-symbols-outlined">checklist</span></button>
+      <button class="seg-btn active" id="btn-flat" onclick="setViewMode('flat')" title="フラット表示 (F)"><span class="material-symbols-outlined">priority</span></button>
     </div>
     <!-- actions: change based on mode -->
     <div class="tb-actions" id="tb-actions">
@@ -1927,13 +1927,25 @@ initDragDrop();
 
 // Global undo/redo shortcuts (preview mode; textarea has its own native undo)
 document.addEventListener('keydown', (e) => {
-  const inEditor = document.activeElement === editor;
-  if (inEditor) return; // let textarea handle native undo while typing
+  const ae = document.activeElement;
+  const inField = ae === editor || (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable));
   const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-    e.preventDefault(); doUndo();
-  } else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
-    e.preventDefault(); doRedo();
+
+  // Undo / redo (preview mode only; textarea uses native)
+  if (!inField) {
+    if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      e.preventDefault(); doUndo(); return;
+    } else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+      e.preventDefault(); doRedo(); return;
+    }
+  }
+
+  // Mode shortcuts: E / T / F — only when not typing in a field and no modifier held
+  if (!inField && !mod && !e.altKey) {
+    const k = e.key.toLowerCase();
+    if (k === 'e') { e.preventDefault(); enterEdit(); }
+    else if (k === 't') { e.preventDefault(); setViewMode('tree'); }
+    else if (k === 'f') { e.preventDefault(); setViewMode('flat'); }
   }
 });
 
