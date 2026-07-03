@@ -86,16 +86,24 @@ body {
 .md-done .md-title { color:var(--text-mid); }
 .done-count { color:var(--text-dim); font-weight:400; font-size:11px; font-family:'JetBrains Mono',monospace; }
 .md-section-body { padding:0; }
-/* trailing add-gap after a top-level card: zero layout height, overlays the
-   8px margin gap via absolute positioning so it never adds/subtracts spacing. */
+/* inter-card add-gap (between top-level cards): a real 8px-tall hoverable spacer.
+   Cards that have this trailing gap set margin-bottom:0 so spacing stays uniform. */
 .pv > .tree-add, .pv > .tree-add-split,
 .md-section-body > .tree-add, .md-section-body > .tree-add-split {
-  height:0; min-height:0; margin:0; position:relative; z-index:5;
+  height:8px; min-height:8px; margin:0; position:relative; z-index:6; overflow:visible;
 }
+/* the click zones fill the 8px gap */
+.pv > .tree-add-split > .tas-zone,
+.md-section-body > .tree-add-split > .tas-zone { height:50%; }
+/* indicator centered in the 8px gap */
 .pv > .tree-add > .ind, .pv > .tree-add-split > .ind,
 .md-section-body > .tree-add > .ind, .md-section-body > .tree-add-split > .ind {
-  position:absolute; top:4px; left:0; right:0;
+  position:absolute; top:50%; transform:translateY(-50%); left:0; right:0;
 }
+/* a top-level card immediately followed by its gap has no own bottom margin */
+.pv > .tree-block, .md-section-body > .tree-block { margin-bottom:0; }
+/* flat cards have no trailing gap element, so they keep their own margin */
+.pv > .flat-card.tree-block, .md-section-body > .flat-card.tree-block { margin-bottom:8px; }
 
 /* toolbar */
 .tb {
@@ -955,9 +963,9 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
     `<div class="tree-children">
       ${renderTreeNodes(undoneKids, isWaiting, node.lineNo)}
     </div>`;
-  const afterGap = isCollapsed ? '' : simpleGap(node.lineNo, 'after', IND_SAME);
   if (isTopLevel) {
-    // gap goes OUTSIDE the block so the indicator sits between cards
+    // sibling-add gap ALWAYS rendered (even when collapsed), placed OUTSIDE the card
+    const topGap = simpleGap(node.lineNo, 'after', IND_SAME);
     return `<div class="tree-node tree-block${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
       <div class="tree-row${waitCls}${suspCls} tree-row-top" data-lineno="${node.lineNo}">
         ${dragHandle}
@@ -967,8 +975,9 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
         ${bPinSvg}
       </div>
       ${childrenHtml}
-    </div>${afterGap}`;
+    </div>${topGap}`;
   }
+  const afterGap = isCollapsed ? '' : simpleGap(node.lineNo, 'after', IND_SAME);
   return `<div class="tree-node${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
     <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
       ${dragHandle}
