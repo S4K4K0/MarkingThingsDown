@@ -73,7 +73,7 @@ body {
 .md-heading:first-child { margin-top:0; }
 .md-arrow {
   font-family:'Material Symbols Outlined'; font-size:18px;
-  color:var(--text-dim); flex-shrink:0; transition:color .12s;
+  color:var(--text-dim); flex-shrink:0; transition:color .12s, transform .15s;
 }
 .md-heading:hover .md-arrow { color:var(--text-mid); }
 .md-title {
@@ -121,6 +121,9 @@ body {
 .tb-right { display:flex; gap:4px; align-items:center; margin-left:auto; }
 
 /* segmented button */
+.seg-btn:focus-visible, .tbtn:focus-visible {
+  outline:2px solid var(--accent); outline-offset:1px;
+}
 .seg-btn {
   width:32px; height:32px; display:flex; align-items:center; justify-content:center;
   border:1px solid var(--border2);
@@ -210,6 +213,18 @@ body {
 .hl-marker  { color:var(--text-mid); }
 .hl-heading { color:var(--accent); }
 
+/* empty state */
+.empty-state {
+  color:var(--text-dim); font-size:12px; text-align:center;
+  padding:48px 16px; line-height:1.9;
+}
+
+/* subtle scrollbar */
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:5px; border:2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background:var(--text-dim); }
+::-webkit-scrollbar-track { background:transparent; }
+
 /* preview */
 .pv { padding:0; min-height:320px; }
 
@@ -291,11 +306,11 @@ body {
   border-radius:8px;
   padding:6px 10px;
   margin-bottom:8px;
+  transition:border-color .15s;
 }
+.tree-block:hover { border-color:var(--border2); }
 :root.light .tree-block { background:#fff; }
-/* inner rows: transparent (no nested card backgrounds) */
-.tree-row { background:transparent; border:1px solid transparent; border-radius:6px; }
-.tree-row:hover { background:rgba(128,128,128,0.06); border-color:transparent; }
+/* inner rows: transparent (no nested card backgrounds) — canonical hover below */
 
 /* collapse arrow on top-level branches */
 .tn-arrow {
@@ -314,8 +329,9 @@ body {
   display:flex; align-items:flex-start;
   padding:4px 6px 4px 18px; margin:0;
   user-select:none; cursor:default; position:relative;
+  background:transparent; border:1px solid transparent; border-radius:6px;
 }
-.tree-row:hover { border-color:var(--border2); }
+.tree-row:hover { background:rgba(128,128,128,0.06); }
 /* drag handle (vertical dots) on left */
 .drag-handle {
   position:absolute; left:2px; top:0; bottom:0;
@@ -344,12 +360,6 @@ body {
   line-height:1.5; flex:1; word-break:break-word;
 }
 
-/* seq indicator */
-.seq-hint {
-  font-size:9px; color:var(--text-dim);
-  font-family:'JetBrains Mono',monospace;
-  margin-left:6px; align-self:center; flex-shrink:0;
-}
 
 /* tree children indented (no nesting background, flat blocks) */
 .tree-children {
@@ -393,7 +403,6 @@ body {
 .tas-child:hover ~ .ind-child { opacity:0.9; }
 .tas-sibling:hover ~ .ind-sibling { opacity:0.9; }
 
-.tree-row { position:relative; }
 /* inline input */
 .tree-inline-input {
   background:transparent; border:none; outline:none;
@@ -522,6 +531,10 @@ const preview = document.getElementById('preview');
 let viewMode  = 'flat'; // 'flat' | 'tree'
 let collapsedHeadings = new Set(); // heading texts that are collapsed
 try { collapsedHeadings = new Set(JSON.parse(localStorage.getItem('todo-collapsed')||'[]')); } catch(e){}
+// Encode a collapse key so it's safe inside single-quoted onclick attributes
+function keyEnc(text) {
+  return encodeURIComponent(text).replace(/'/g, '%27').replace(/"/g, '%22');
+}
 function saveCollapsed() { try { localStorage.setItem('todo-collapsed', JSON.stringify([...collapsedHeadings])); } catch(e){} }
 function toggleHeading(key) {
   if (collapsedHeadings.has(key)) collapsedHeadings.delete(key);
@@ -717,15 +730,6 @@ function isSurfaced(n) {
   return !n.done && n.children.length > 0 && n.children.every(c => c.done);
 }
 
-// Inherit important/urgent from ancestors
-function priorityOf(node, inheritedImportant=false, inheritedUrgent=false, inheritedSuspended=false) {
-  return {
-    important: node.important || inheritedImportant,
-    urgent:    node.urgent    || inheritedUrgent,
-    suspended: node.suspended || inheritedSuspended,
-  };
-}
-
 // Sort key: suspended always last (4), then both=0, important=1, urgent=2, none=3
 function prioritySortKey(imp, urg, susp) {
   if (susp) return 4;
@@ -845,7 +849,7 @@ function renderFlat(tree) {
   });
 
   html += renderDoneSection(tree);
-  return html || '<p style="color:var(--text-dim);font-size:12px;padding:8px;">タスクがありません</p>';
+  return html || '<div class="empty-state">タスクがありません。<br>編集モード (E) でタスクを追加できます。</div>';
 }
 
 // ── TREE MODE ──
@@ -870,7 +874,7 @@ function renderTree(tree) {
   // Top-level trees are independent — no seq filter. Render with gaps.
   let html = renderTreeNodesTop(active);
   html += renderDoneSection(tree);
-  return html || '<p style="color:var(--text-dim);font-size:12px;padding:8px;">タスクがありません</p>';
+  return html || '<div class="empty-state">タスクがありません。<br>編集モード (E) でタスクを追加できます。</div>';
 }
 
 // Top-level (root list): no seq filter. Leading gap before the very first node;
@@ -920,7 +924,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
        ondragend="dragEnd(event)" title="ドラッグで移動">drag_indicator</div>`;
 
   // Top-level collapse state
-  const collapseKey = 'tn:' + node.lineNo;
+  const collapseKey = 'tn:' + keyEnc(node.label);
   const isCollapsed = isTopLevel && hasKids && collapsedHeadings.has(collapseKey);
   const collapseArrow = (isTopLevel && hasKids)
     ? `<span class="tn-arrow material-symbols-outlined" onclick="event.stopPropagation();toggleHeading('${collapseKey}')">${isCollapsed?'chevron_right':'expand_more'}</span>`
@@ -1110,7 +1114,7 @@ function render() {
       // top-level nodes whose lineNo falls in [startLine, endLine]
       const secNodes = tree.filter(n => n.lineNo >= startLine && n.lineNo <= endLine);
 
-      const key = sec.heading ? `h:${sec.heading.lineNo}` : `__lead__${si}`;
+      const key = sec.heading ? `h:${keyEnc(sec.heading.text)}` : `__lead__${si}`;
       const collapsed = sec.heading && collapsedHeadings.has(key);
 
       // Skip empty leading section (no heading, no nodes)
@@ -1134,7 +1138,7 @@ function render() {
     });
     // Done section: divider-style heading (collapsible)
     html += renderDoneMd(tree);
-    preview.innerHTML = html || '<p style="color:var(--text-dim);font-size:12px;padding:8px;">タスクがありません</p>';
+    preview.innerHTML = html || '<div class="empty-state">タスクがありません。<br>編集モード (E) でタスクを追加できます。</div>';
   }
   updateStats(tree);
 }
@@ -1257,7 +1261,7 @@ function initDragDrop() {
     // gap between cards), treat as "drop after that block" (sibling at root level).
     if (!row && !topBlock) {
       // hovering the empty gap between cards — find the nearest block above the cursor
-      const blocks = [...pv.querySelectorAll('.pv > .tree-block, .tree-block')];
+      const blocks = [...pv.querySelectorAll('.tree-block')];
       let target = null;
       for (const b of blocks) {
         const r = b.getBoundingClientRect();
@@ -1363,7 +1367,9 @@ function performMove(srcLine, dstLine, position) {
 
   // compute insertion point
   let insertAt;
-  if (position === 'child' || position === 'child-first') {
+  if (position === 'before') {
+    insertAt = dst;
+  } else if (position === 'child' || position === 'child-first') {
     // insert as first child: right after dst
     insertAt = dst + 1;
   } else { // after: after dst's subtree
@@ -1893,11 +1899,6 @@ function fmtTs(ts) {
   if (ts.length < 12) return ts;
   return `${ts.slice(0,4)}-${ts.slice(4,6)}-${ts.slice(6,8)} ${ts.slice(8,10)}:${ts.slice(10,12)}`;
 }
-// Build a tree-add zone element
-function makeTreeAdd(lineNo, position, indentPx, label) {
-  return `<div class="tree-add" style="padding-left:${indentPx}px" onclick="inlineAdd(${lineNo},'${position}')"><div class="tree-add-inner">+<span class="tree-add-line"></span></div></div>`;
-}
-
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // Render label: escape HTML then linkify [text](url)
