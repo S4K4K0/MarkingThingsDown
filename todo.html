@@ -310,6 +310,10 @@ body {
 }
 .tree-block:hover { border-color:var(--border2); }
 :root.light .tree-block { background:#fff; }
+/* pending card: only suspended items remain — blend into page background */
+.tree-block.card-pending,
+:root.light .tree-block.card-pending { background:var(--bg); }
+.tree-block.card-pending:hover { border-color:var(--border2); }
 /* inner rows: transparent (no nested card backgrounds) — canonical hover below */
 
 /* collapse arrow on top-level branches */
@@ -842,10 +846,11 @@ function renderFlat(tree) {
   cards.sort((a, b) => a.key - b.key);
 
   let html = '';
-  cards.forEach(({ root, actions }) => {
+  cards.forEach(({ root, actions, key }) => {
     const hasChildren = root.children.length > 0;
     const header = hasChildren ? `<div class="flat-card-title">${esc(root.label)}</div>` : '';
-    html += `<div class="flat-card tree-block">${header}${renderFlatRows(actions)}</div>`;
+    const pendCls = key === 4 ? ' card-pending' : '';
+    html += `<div class="flat-card tree-block${pendCls}">${header}${renderFlatRows(actions)}</div>`;
   });
 
   html += renderDoneSection(tree);
@@ -913,6 +918,13 @@ function renderTreeNodes(nodes, forceWaiting=false, parentLineNo=-1) {
 
 function renderTreeNode(node, isWaiting, isTopLevel=false) {
   const hasKids = node.children.length > 0;
+  // pending = all active next actions are suspended (no actionable item)
+  let pendCls = '';
+  if (isTopLevel) {
+    const acts = [];
+    collectNextActionsOne(node, [], acts, null);
+    if (acts.length && cardPriorityKey(acts) === 4) pendCls = ' card-pending';
+  }
   // Surfaces one level at a time: only when every DIRECT child is explicitly done.
   const allKidDone = hasKids && node.children.every(c => c.done);
   const nodeSurfaced = hasKids && allKidDone && !node.done;
@@ -936,7 +948,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
     const leafIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
     const leafGap = splitGap(node.lineNo);
     if (isTopLevel) {
-      return `<div class="tree-node tree-block" data-node-line="${node.lineNo}">
+      return `<div class="tree-node tree-block${pendCls}" data-node-line="${node.lineNo}">
         <div class="tree-row${waitCls}${suspCls} tree-row-top" data-lineno="${node.lineNo}">
           ${dragHandle}
           <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
@@ -970,7 +982,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
   if (isTopLevel) {
     // sibling-add gap ALWAYS rendered (even when collapsed), placed OUTSIDE the card
     const topGap = simpleGap(node.lineNo, 'after', IND_SAME);
-    return `<div class="tree-node tree-block${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
+    return `<div class="tree-node tree-block${pendCls}${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
       <div class="tree-row${waitCls}${suspCls} tree-row-top" data-lineno="${node.lineNo}">
         ${dragHandle}
         ${collapseArrow}
@@ -1155,10 +1167,11 @@ function renderFlatNodes(nodes) {
   });
   cards.sort((a, b) => a.key - b.key);
   let html = '';
-  cards.forEach(({ root, actions }) => {
+  cards.forEach(({ root, actions, key }) => {
     const hasChildren = root.children.length > 0;
     const header = hasChildren ? `<div class="flat-card-title">${esc(root.label)}</div>` : '';
-    html += `<div class="flat-card tree-block">${header}${renderFlatRows(actions)}</div>`;
+    const pendCls = key === 4 ? ' card-pending' : '';
+    html += `<div class="flat-card tree-block${pendCls}">${header}${renderFlatRows(actions)}</div>`;
   });
   return html;
 }
