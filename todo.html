@@ -824,8 +824,11 @@ function tagIcons(lineNo, imp, urg, susp) {
 function renderFlatRows(actions) {
   let html = '';
   actions.forEach(({node, path, imp, urg, susp}) => {
-    const pathStr = path.length
-      ? `<div class="flat-path">${path.map(escCrumb).join('<span class="sep">›</span>')}</div>` : '';
+    // The card title already shows the top-level node, so start the breadcrumb
+    // from the next level down to avoid duplicating it.
+    const crumbs = path.slice(1);
+    const pathStr = crumbs.length
+      ? `<div class="flat-path">${crumbs.map(esc).join('<span class="sep">›</span>')}</div>` : '';
     const icons = tagIcons(node.lineNo, imp, urg, susp);
     html += `<div class="flat-row${susp?' susp':''}" data-lineno="${node.lineNo}">
       ${pathStr}
@@ -1101,7 +1104,7 @@ function renderDoneItems(leaves) {
     html += `<div class="done-group-label">${esc(label)}</div>`;
     items.forEach(({node, ancestors}) => {
       const pathStr = ancestors.length
-        ? `<div class="flat-path">${ancestors.map(escCrumb).join('<span class="sep">›</span>')}</div>` : '';
+        ? `<div class="flat-path">${ancestors.map(esc).join('<span class="sep">›</span>')}</div>` : '';
       const ts = node.doneTs ? `<div class="task-ts">${fmtTs(node.doneTs)}</div>` : '';
       html += `<div class="flat-row done" data-lineno="${node.lineNo}">
         ${pathStr}
@@ -1937,19 +1940,6 @@ function fmtTs(ts) {
   if (ts.length < 12) return ts;
   return `${ts.slice(0,4)}-${ts.slice(4,6)}-${ts.slice(6,8)} ${ts.slice(8,10)}:${ts.slice(10,12)}`;
 }
-// Strip a leading emoji (and following spaces) from a label — used for breadcrumbs,
-// so decorative emoji on tree tops don't clutter the flat-mode path.
-// Handles: plain emoji, variation selectors, skin tones, ZWJ sequences, flags, keycaps.
-const _EMOJI_SEQ = '\\p{Extended_Pictographic}[\\u{FE0F}\\u{1F3FB}-\\u{1F3FF}]*(?:\\u{200D}\\p{Extended_Pictographic}[\\u{FE0F}\\u{1F3FB}-\\u{1F3FF}]*)*';
-const _KEYCAP    = '[0-9#*]\\u{FE0F}?\\u{20E3}';
-const _FLAG      = '[\\u{1F1E6}-\\u{1F1FF}]{2}';
-const LEADING_EMOJI_RE = new RegExp(`^(?:${_KEYCAP}|${_FLAG}|${_EMOJI_SEQ}|\\s)+`, 'u');
-function stripLeadingEmoji(str) {
-  try { return str.replace(LEADING_EMOJI_RE, ''); } catch(e) { return str; }
-}
-// Escape + strip leading emoji, for breadcrumb segments
-function escCrumb(str) { return esc(stripLeadingEmoji(str)); }
-
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // Render label: escape HTML then linkify [text](url)
