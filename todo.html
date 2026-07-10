@@ -277,6 +277,21 @@ body {
   font-size:9px; color:var(--text-dim);
   font-family:'JetBrains Mono',monospace; margin-top:1px;
 }
+
+/* ── tree mode: completed tasks stay visible, smaller + struck through ── */
+.tree-row.done { opacity:0.55; }
+.tree-row.done .task-name { font-size:11.5px; }
+.tree-row.done .tree-branch-label {
+  font-size:11px; color:var(--done-fg);
+  text-decoration:line-through; text-decoration-color:var(--done-strike);
+  font-weight:400;
+}
+.tree-row.done.tree-row-top .tree-branch-label { font-size:12px; }
+/* hide priority icons on completed rows unless hovered (reduce noise) */
+.tree-row.done .tag-icons, .tree-row.done .pin { opacity:0; }
+.tree-row.done:hover { opacity:0.9; }
+.tree-row.done:hover .tag-icons { opacity:0.35; }
+.tree-row.done:hover .pin { opacity:0.3; }
 /* pin icon — Material Symbol 'keep' */
 .pin {
   flex-shrink:0; font-size:16px; margin-left:6px;
@@ -576,6 +591,7 @@ const DEFAULT = `# プロジェクトA
 // ── Storage ──
 const save = () => { try { localStorage.setItem(SK, editor.value); } catch(e){} };
 
+
 // ── Undo history ──
 let _undoStack = [];
 let _redoStack = [];
@@ -809,7 +825,7 @@ function renderFlatRows(actions) {
   let html = '';
   actions.forEach(({node, path, imp, urg, susp}) => {
     const pathStr = path.length
-      ? `<div class="flat-path">${path.map(esc).join('<span class="sep">›</span>')}</div>` : '';
+      ? `<div class="flat-path">${path.map(escCrumb).join('<span class="sep">›</span>')}</div>` : '';
     const icons = tagIcons(node.lineNo, imp, urg, susp);
     html += `<div class="flat-row${susp?' susp':''}" data-lineno="${node.lineNo}">
       ${pathStr}
@@ -899,18 +915,24 @@ function renderTreeNodesTop(nodes) {
 function renderTreeNodes(nodes, forceWaiting=false, parentLineNo=-1) {
   let html = '';
   let seqUsed = false;
-  const visibleNodes = nodes.filter(n => !n.done && !(fullyDone(n) && !isSurfaced(n)));
+  // Tree mode keeps DONE nodes visible (struck through) for a sense of progress.
+  // Fully-done-but-unsurfaced subtrees are also kept, rendered as done.
+  const visibleNodes = nodes;
 
   if (!visibleNodes.length) {
-    // Empty child list: offer to add first child of parent
     if (parentLineNo >= 0) html += simpleGap(parentLineNo, 'child', IND_SAME);
     return html;
   }
 
   visibleNodes.forEach((n, idx) => {
-    const isSeqWaiting = n.marker !== '*' && (forceWaiting || seqUsed);
-    if (n.marker !== '*') seqUsed = true;
-    if (idx === 0) html += simpleGap(n.lineNo, 'before', IND_SAME); // gap above first child
+    // Done nodes never consume the sequence slot and are never "waiting"
+    const isDoneNode = n.done || (fullyDone(n) && !isSurfaced(n));
+    let isSeqWaiting = false;
+    if (!isDoneNode) {
+      isSeqWaiting = n.marker !== '*' && (forceWaiting || seqUsed);
+      if (n.marker !== '*') seqUsed = true;
+    }
+    if (idx === 0) html += simpleGap(n.lineNo, 'before', IND_SAME);
     html += renderTreeNode(n, isSeqWaiting);
   });
   return html;
@@ -930,6 +952,9 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
   const nodeSurfaced = hasKids && allKidDone && !node.done;
   const waitCls = isWaiting ? ' seq-waiting' : '';
   const suspCls  = node.suspended ? ' susp' : '';
+  // done (or a fully-done subtree that hasn't surfaced) → struck through, small
+  const isDoneNode = node.done || (hasKids && fullyDone(node) && !isSurfaced(node));
+  const doneCls = isDoneNode ? ' done' : '';
   const dragHandle = `<div class="drag-handle" draggable="true"
        onmousedown="event.stopPropagation()"
        ondragstart="dragStart(event,${node.lineNo})"
@@ -949,7 +974,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
     const leafGap = splitGap(node.lineNo);
     if (isTopLevel) {
       return `<div class="tree-node tree-block${pendCls}" data-node-line="${node.lineNo}">
-        <div class="tree-row${waitCls}${suspCls} tree-row-top" data-lineno="${node.lineNo}">
+        <div class="tree-row${waitCls}${suspCls}${doneCls} tree-row-top" data-lineno="${node.lineNo}">
           ${dragHandle}
           <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
           <div class="task-name" ondblclick="inlineEdit(${node.lineNo}, false)">${renderLabel(node.label)}</div>
@@ -959,7 +984,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
       </div>${leafGap}`;
     }
     return `<div class="tree-node" data-node-line="${node.lineNo}">
-      <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
+      <div class="tree-row${waitCls}${suspCls}${doneCls}" data-lineno="${node.lineNo}">
         ${dragHandle}
         <div class="chk" onclick="toggleDone(${node.lineNo})">${CHK}</div>
         <div class="task-name" ondblclick="inlineEdit(${node.lineNo}, false)">${renderLabel(node.label)}</div>
@@ -973,7 +998,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
   // branch
   const bIsPar = node.marker === '*';
   const bPinSvg = `<span class="pin${bIsPar?' is-par':''}" title="${bIsPar?'パラレル → シーケンスに変更':'シーケンス → パラレルに変更'}" onclick="togglePin(${node.lineNo})">keep</span>`;
-  const undoneKids = node.children.filter(c => !c.done && !(fullyDone(c) && !isSurfaced(c)));
+  const undoneKids = node.children; // tree keeps done children visible (struck through)
   const branchIcons = tagIcons(node.lineNo, node.important, node.urgent, node.suspended);
   const childrenHtml = isCollapsed ? '' :
     `<div class="tree-children">
@@ -983,7 +1008,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
     // sibling-add gap ALWAYS rendered (even when collapsed), placed OUTSIDE the card
     const topGap = simpleGap(node.lineNo, 'after', IND_SAME);
     return `<div class="tree-node tree-block${pendCls}${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
-      <div class="tree-row${waitCls}${suspCls} tree-row-top" data-lineno="${node.lineNo}">
+      <div class="tree-row${waitCls}${suspCls}${doneCls} tree-row-top" data-lineno="${node.lineNo}">
         ${dragHandle}
         ${collapseArrow}
         <div class="tree-branch-label" ondblclick="inlineEdit(${node.lineNo}, false)">${esc(node.label)}</div>
@@ -995,7 +1020,7 @@ function renderTreeNode(node, isWaiting, isTopLevel=false) {
   }
   const afterGap = isCollapsed ? '' : simpleGap(node.lineNo, 'after', IND_SAME);
   return `<div class="tree-node${isCollapsed?' collapsed':''}" data-node-line="${node.lineNo}">
-    <div class="tree-row${waitCls}${suspCls}" data-lineno="${node.lineNo}">
+    <div class="tree-row${waitCls}${suspCls}${doneCls}" data-lineno="${node.lineNo}">
       ${dragHandle}
       ${collapseArrow}
       <div class="tree-branch-label" ondblclick="inlineEdit(${node.lineNo}, false)">${esc(node.label)}</div>
@@ -1076,7 +1101,7 @@ function renderDoneItems(leaves) {
     html += `<div class="done-group-label">${esc(label)}</div>`;
     items.forEach(({node, ancestors}) => {
       const pathStr = ancestors.length
-        ? `<div class="flat-path">${ancestors.map(esc).join('<span class="sep">›</span>')}</div>` : '';
+        ? `<div class="flat-path">${ancestors.map(escCrumb).join('<span class="sep">›</span>')}</div>` : '';
       const ts = node.doneTs ? `<div class="task-ts">${fmtTs(node.doneTs)}</div>` : '';
       html += `<div class="flat-row done" data-lineno="${node.lineNo}">
         ${pathStr}
@@ -1912,6 +1937,19 @@ function fmtTs(ts) {
   if (ts.length < 12) return ts;
   return `${ts.slice(0,4)}-${ts.slice(4,6)}-${ts.slice(6,8)} ${ts.slice(8,10)}:${ts.slice(10,12)}`;
 }
+// Strip a leading emoji (and following spaces) from a label — used for breadcrumbs,
+// so decorative emoji on tree tops don't clutter the flat-mode path.
+// Handles: plain emoji, variation selectors, skin tones, ZWJ sequences, flags, keycaps.
+const _EMOJI_SEQ = '\\p{Extended_Pictographic}[\\u{FE0F}\\u{1F3FB}-\\u{1F3FF}]*(?:\\u{200D}\\p{Extended_Pictographic}[\\u{FE0F}\\u{1F3FB}-\\u{1F3FF}]*)*';
+const _KEYCAP    = '[0-9#*]\\u{FE0F}?\\u{20E3}';
+const _FLAG      = '[\\u{1F1E6}-\\u{1F1FF}]{2}';
+const LEADING_EMOJI_RE = new RegExp(`^(?:${_KEYCAP}|${_FLAG}|${_EMOJI_SEQ}|\\s)+`, 'u');
+function stripLeadingEmoji(str) {
+  try { return str.replace(LEADING_EMOJI_RE, ''); } catch(e) { return str; }
+}
+// Escape + strip leading emoji, for breadcrumb segments
+function escCrumb(str) { return esc(stripLeadingEmoji(str)); }
+
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // Render label: escape HTML then linkify [text](url)
@@ -1947,6 +1985,7 @@ editor.value = load() ?? DEFAULT;
 render();
 updateHL();
 initDragDrop();
+
 
 // Global undo/redo shortcuts (preview mode; textarea has its own native undo)
 document.addEventListener('keydown', (e) => {
