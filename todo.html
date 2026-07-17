@@ -505,19 +505,21 @@ body {
 <div class="tb" id="toolbar">
     <!-- segmented: edit / flat / tree — always visible left -->
     <div class="tb-seg">
-      <button class="seg-btn" id="btn-edit" onclick="enterEdit()" title="編集 (E)"><span class="material-symbols-outlined">edit</span></button>
-      <button class="seg-btn" id="btn-tree" onclick="setViewMode('tree')" title="ツリー表示 (T)"><span class="material-symbols-outlined">checklist</span></button>
-      <button class="seg-btn active" id="btn-flat" onclick="setViewMode('flat')" title="フラット表示 (F)"><span class="material-symbols-outlined">priority</span></button>
+      <button class="seg-btn" id="btn-edit" onclick="enterEdit()" title="編集 (E / 1)"><span class="material-symbols-outlined">edit</span></button>
+      <button class="seg-btn" id="btn-tree" onclick="setViewMode('tree')" title="ツリー表示 (T / 2)"><span class="material-symbols-outlined">checklist</span></button>
+      <button class="seg-btn active" id="btn-flat" onclick="setViewMode('flat')" title="フラット表示 (F / 3)"><span class="material-symbols-outlined">priority</span></button>
     </div>
     <!-- actions: change based on mode -->
     <div class="tb-actions" id="tb-actions">
       <!-- preview actions -->
       <span id="act-pv" style="display:flex;gap:4px;align-items:center;">
         <button class="ibtn" id="copy-btn" onclick="doCopy()" title="コピー"><span class="material-symbols-outlined">copy_all</span><span class="flash">コピー済み</span></button>
+        <button class="ibtn" id="mail-btn" onclick="doMail()" title="メールで送る（本文に挿入）"><span class="material-symbols-outlined">mail</span></button>
       </span>
       <!-- edit actions -->
       <span id="act-ed" style="display:none;gap:4px;align-items:center;">
         <button class="ibtn" id="copy-btn-ed" onclick="doCopy()" title="コピー"><span class="material-symbols-outlined">copy_all</span></button>
+        <button class="ibtn" id="mail-btn-ed" onclick="doMail()" title="メールで送る（本文に挿入）"><span class="material-symbols-outlined">mail</span></button>
         <button class="tbtn danger" id="cleanup-btn" onclick="doCleanup()" title="クリーンアップ"><span class="material-symbols-outlined">cleaning_services</span></button>
       </span>
     </div>
@@ -1936,6 +1938,36 @@ function doCopy() {
   });
 }
 
+// Open the OS mail client with the current text as the body.
+// Note: mailto: cannot carry attachments (browser/OS security), body only.
+// URL length is limited (~2000 chars is the safe floor across clients), so we
+// warn and offer to truncate rather than silently producing a broken link.
+const MAILTO_SAFE_LEN = 1800;
+function doMail() {
+  let body = editor.value;
+  const subject = 'TODO ' + new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
+
+  const buildUrl = (b) => 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(b);
+  let url = buildUrl(body);
+
+  if (url.length > MAILTO_SAFE_LEN) {
+    const ok = confirm(
+      'テキストが長いため、メールクライアントで途中までしか渡せない可能性があります。\n\n' +
+      '「OK」: 先頭部分だけを本文に入れて開く\n' +
+      '「キャンセル」: 全文をクリップボードにコピー（手動で貼り付け）'
+    );
+    if (!ok) { doCopy(); return; }
+    // Truncate on a line boundary, accounting for the trailing notice
+    const NOTICE = '\n\n…（以降は省略されました）';
+    while (buildUrl(body + NOTICE).length > MAILTO_SAFE_LEN && body.length > 0) {
+      const cut = body.lastIndexOf('\n', Math.floor(body.length * 0.9));
+      body = cut > 0 ? body.slice(0, cut) : body.slice(0, Math.floor(body.length * 0.9));
+    }
+    url = buildUrl(body + NOTICE);
+  }
+  window.location.href = url;
+}
+
 function fmtTs(ts) {
   if (ts.length < 12) return ts;
   return `${ts.slice(0,4)}-${ts.slice(4,6)}-${ts.slice(6,8)} ${ts.slice(8,10)}:${ts.slice(10,12)}`;
@@ -1992,12 +2024,13 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-  // Mode shortcuts: E / T / F — only when not typing in a field and no modifier held
+  // Mode shortcuts: E/1 = edit, T/2 = tree, F/3 = flat.
+  // Skipped while typing in the editor or any input, and when a modifier is held.
   if (!inField && !mod && !e.altKey) {
     const k = e.key.toLowerCase();
-    if (k === 'e') { e.preventDefault(); enterEdit(); }
-    else if (k === 't') { e.preventDefault(); setViewMode('tree'); }
-    else if (k === 'f') { e.preventDefault(); setViewMode('flat'); }
+    if (k === 'e' || k === '1') { e.preventDefault(); enterEdit(); }
+    else if (k === 't' || k === '2') { e.preventDefault(); setViewMode('tree'); }
+    else if (k === 'f' || k === '3') { e.preventDefault(); setViewMode('flat'); }
   }
 });
 
