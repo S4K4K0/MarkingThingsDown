@@ -514,12 +514,10 @@ body {
       <!-- preview actions -->
       <span id="act-pv" style="display:flex;gap:4px;align-items:center;">
         <button class="ibtn" id="copy-btn" onclick="doCopy()" title="コピー"><span class="material-symbols-outlined">copy_all</span><span class="flash">コピー済み</span></button>
-        <button class="ibtn" id="mail-btn" onclick="doMail()" title="メールで送る（本文に挿入）"><span class="material-symbols-outlined">mail</span></button>
       </span>
       <!-- edit actions -->
       <span id="act-ed" style="display:none;gap:4px;align-items:center;">
         <button class="ibtn" id="copy-btn-ed" onclick="doCopy()" title="コピー"><span class="material-symbols-outlined">copy_all</span></button>
-        <button class="ibtn" id="mail-btn-ed" onclick="doMail()" title="メールで送る（本文に挿入）"><span class="material-symbols-outlined">mail</span></button>
         <button class="tbtn danger" id="cleanup-btn" onclick="doCleanup()" title="クリーンアップ"><span class="material-symbols-outlined">cleaning_services</span></button>
       </span>
     </div>
@@ -1936,36 +1934,6 @@ function doCopy() {
     t.value=editor.value;t.style.cssText='position:fixed;opacity:0';
     document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);
   });
-}
-
-// Open the OS mail client with the current text as the body.
-// Note: mailto: cannot carry attachments (browser/OS security), body only.
-// URL length is limited (~2000 chars is the safe floor across clients), so we
-// warn and offer to truncate rather than silently producing a broken link.
-const MAILTO_SAFE_LEN = 1800;
-function doMail() {
-  let body = editor.value;
-  const subject = 'TODO ' + new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
-
-  const buildUrl = (b) => 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(b);
-  let url = buildUrl(body);
-
-  if (url.length > MAILTO_SAFE_LEN) {
-    const ok = confirm(
-      'テキストが長いため、メールクライアントで途中までしか渡せない可能性があります。\n\n' +
-      '「OK」: 先頭部分だけを本文に入れて開く\n' +
-      '「キャンセル」: 全文をクリップボードにコピー（手動で貼り付け）'
-    );
-    if (!ok) { doCopy(); return; }
-    // Truncate on a line boundary, accounting for the trailing notice
-    const NOTICE = '\n\n…（以降は省略されました）';
-    while (buildUrl(body + NOTICE).length > MAILTO_SAFE_LEN && body.length > 0) {
-      const cut = body.lastIndexOf('\n', Math.floor(body.length * 0.9));
-      body = cut > 0 ? body.slice(0, cut) : body.slice(0, Math.floor(body.length * 0.9));
-    }
-    url = buildUrl(body + NOTICE);
-  }
-  window.location.href = url;
 }
 
 function fmtTs(ts) {
